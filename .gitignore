@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Ferramentas locais e downloads temporários
+tools/
+cloudflared.exe
+scratch/
+
+# Banco de dados e uploads de teste local (não sobrescrever dados de produção)
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace

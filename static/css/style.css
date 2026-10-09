@@ -1,0 +1,200 @@
+/* 
+   style.css - Estilização Tática Militar para o Sistema do 46º BPM (Bagé/RS)
+*/
+
+:root {
+    --bg-tactical-body: #0b1320;
+    --bg-tactical-navy: #101c2e;
+    --bg-tactical-card: #15243b;
+    --border-tactical: #1e3352;
+    --color-primary: #0284c7;
+    --color-accent: #38bdf8;
+    --color-gold: #f59e0b;
+    --text-primary: #f8fafc;
+    --text-muted: #94a3b8;
+}
+
+body {
+    background-color: var(--bg-tactical-body);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+/* Navbar */
+.bg-tactical-navy {
+    background-color: var(--bg-tactical-navy) !important;
+}
+
+.border-tactical {
+    border-color: var(--border-tactical) !important;
+}
+
+.brand-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: 8px;
+}
+
+.brand-brasao-img {
+    height: 44px;
+    width: 44px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
+    transition: transform 0.2s ease;
+}
+
+.brand-brasao-img:hover {
+    transform: scale(1.06);
+}
+
+.brand-title {
+    font-family: 'Teko', sans-serif;
+    font-size: 1.45rem;
+    letter-spacing: 1px;
+}
+
+.brand-subtitle {
+    font-size: 0.72rem;
+    letter-spacing: 0.5px;
+}
+
+.nav-link {
+    color: var(--text-muted) !important;
+    font-size: 0.92rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.nav-link:hover, .nav-link.active {
+    color: var(--text-primary) !important;
+    background-color: rgba(56, 189, 248, 0.12);
+}
+
+/* Cards Táticos */
+.card-tactical {
+    background-color: var(--bg-tactical-card);
+    border: 1px solid var(--border-tactical);
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.kpi-icon-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Botões Customizados */
+.btn-tactical-outline {
+    background-color: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-tactical);
+    transition: all 0.2s ease;
+}
+
+.btn-tactical-outline:hover {
+    background-color: var(--border-tactical);
+    color: var(--text-primary);
+}
+
+/* Tabelas Táticas */
+.tactical-table {
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: rgba(56, 189, 248, 0.05);
+    font-size: 0.88rem;
+}
+
+.tactical-table thead th {
+    background-color: #0d1829;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 12px 10px;
+    border-bottom: 2px solid var(--border-tactical);
+}
+
+.tactical-table tbody td {
+    padding: 11px 10px;
+    border-bottom: 1px solid rgba(30, 51, 82, 0.6);
+}
+
+/* Badges e Tipografia */
+.fs-7 {
+    font-size: 0.75rem;
+}
+
+.upload-dropzone {
+    background: rgba(16, 28, 46, 0.6);
+    border: 2px dashed var(--border-tactical) !important;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.upload-dropzone:hover, .upload-dropzone.dragover {
+    border-color: var(--color-accent) !important;
+    background: rgba(14, 165, 233, 0.15) !important;
+}
+
+.upload-dropzone.has-file {
+    border-color: #22c55e !important;
+    background: rgba(34, 197, 94, 0.1) !important;
+}
+
+.dropzone-icon-box {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(56, 189, 248, 0.12);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.has-file .dropzone-icon-box {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e !important;
+}
+
+/* Footer */
+footer {
+    background-color: #080d16 !important;
+    font-size: 0.82rem;
+}
+
+/* Seletor dos 3 Assuntos / Módulos */
+.btn-tactical-ghost {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #94a3b8 !important;
+    transition: all 0.2s ease;
+}
+
+.btn-tactical-ghost:hover {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.module-pill {
+    font-size: 0.86rem;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+}
+

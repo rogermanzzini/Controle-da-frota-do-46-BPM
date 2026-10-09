@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block title %}Pneus &bull; {{ app_titulo }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom border-tactical gap-3">
+    <div>
+        <h2 class="h4 mb-1 text-white fw-bold d-flex align-items-center gap-2">
+            <i class="fa-solid fa-circle-notch text-warning"></i>
+            Gestão e Monitoramento de Pneus da Frota
+        </h2>
+        <p class="text-muted small mb-0">
+            Controle de vida útil, medição de profundidade de sulco, rodízios programados e estoque de pneus do 46º BPM.
+        </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-warning btn-sm px-3 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNovoPneu">
+            <i class="fa-solid fa-plus me-1"></i> Cadastrar Pneu
+        </button>
+        <button type="button" class="btn btn-tactical-outline btn-sm px-3" data-bs-toggle="modal" data-bs-target="#modalMedicaoPneu">
+            <i class="fa-solid fa-arrows-rotate me-1"></i> Registrar Medição / Rodízio
+        </button>
+    </div>
+</div>
+
+<!-- KPIs do Módulo de Pneus -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl">
+        <div class="card card-tactical h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold d-block">Pneus Monitorados</span>
+                    <span class="fs-3 fw-bold text-white">{{ stats.total }}</span>
+                </div>
+                <div class="kpi-icon-box bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                    <i class="fa-solid fa-layer-group fs-4"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">Total de pneus com registro de fogo</div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl">
+        <div class="card card-tactical h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold d-block">Pneus em Uso</span>
+                    <span class="fs-3 fw-bold text-info">{{ stats.em_uso }}</span>
+                </div>
+                <div class="kpi-icon-box bg-info bg-opacity-10 text-info border border-info border-opacity-25">
+                    <i class="fa-solid fa-truck-monster fs-4"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">Montados nas viaturas ativas</div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl">
+        <div class="card card-tactical h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold d-block">Pneus Críticos</span>
+                    <span class="fs-3 fw-bold {% if stats.criticos > 0 %}text-danger{% else %}text-success{% endif %}">{{ stats.criticos }}</span>
+                </div>
+                <div class="kpi-icon-box {% if stats.criticos > 0 %}bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25{% else %}bg-success bg-opacity-10 text-success border border-success border-opacity-25{% endif %}">
+                    <i class="fa-solid fa-triangle-exclamation fs-4"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">Sulco &lt; 2.5mm / Limite de Segurança</div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl">
+        <div class="card card-tactical h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold d-block">Em Estoque</span>
+                    <span class="fs-3 fw-bold text-warning">{{ stats.estoque }}</span>
+                </div>
+                <div class="kpi-icon-box bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">
+                    <i class="fa-solid fa-boxes-packing fs-4"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">Reserva no almoxarifado do P4</div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl">
+        <div class="card card-tactical h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold d-block">Média de Sulco</span>
+                    <span class="fs-3 fw-bold text-success">{{ stats.media_sulco }} mm</span>
+                </div>
+                <div class="kpi-icon-box bg-success bg-opacity-10 text-success border border-success border-opacity-25">
+                    <i class="fa-solid fa-ruler-vertical fs-4"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">Profundidade média da frota</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros de Pneus -->
+<div class="card card-tactical p-3 mb-4">
+    <form method="GET" action="{{ url_for('modulo_pneus') }}" class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label small text-muted mb-1">Filtrar por Status:</label>
+            <select name="status" class="form-select form-select-sm bg-dark text-light border-secondary">
+                <option value="Todos" {% if filtro_status == 'Todos' %}selected{% endif %}>Todos os Status</option>
+                <option value="Excelente" {% if filtro_status == 'Excelente' %}selected{% endif %}>Excelente (&gt;= 6mm)</option>
+                <option value="Bom" {% if filtro_status == 'Bom' %}selected{% endif %}>Bom (4mm a 6mm)</option>
+                <option value="Regular" {% if filtro_status == 'Regular' %}selected{% endif %}>Regular (2.5mm a 4mm)</option>
+                <option value="Crítico / Substituir" {% if filtro_status == 'Crítico / Substituir' %}selected{% endif %}>Crítico (&lt; 2.5mm)</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small text-muted mb-1">Filtrar por Viatura:</label>
+            <select name="viatura" class="form-select form-select-sm bg-dark text-light border-secondary">
+                <option value="Todos">Todas as Viaturas</option>
+                {% for v in viaturas_cadastradas %}
+                    <option value="{{ v.prefixo }}" {% if filtro_viatura == v.prefixo %}selected{% endif %}>
+                        Vtr {{ v.prefixo }} ({{ v.placa }} - {{ v.modelo }})
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm px-3">
+                <i class="fa-solid fa-filter me-1"></i> Filtrar
+            </button>
+            <a href="{{ url_for('modulo_pneus') }}" class="btn btn-outline-secondary btn-sm px-3">
+                Limpar
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Tabela de Pneus -->
+<div class="card card-tactical">
+    <div class="card-header bg-tactical-navy d-flex justify-content-between align-items-center py-3">
+        <span class="fw-bold text-white"><i class="fa-solid fa-circle-dot text-warning me-2"></i>Inventário e Estado de Conservação dos Pneus</span>
+        <span class="badge bg-secondary">Total: {{ pneus|length }} pneus</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead class="bg-tactical-navy text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-3">Nº de Fogo</th>
+                        <th>Viatura / Local</th>
+                        <th>Posição</th>
+                        <th>Marca / Modelo</th>
+                        <th>Medida / DOT</th>
+                        <th style="min-width: 170px;">Profundidade de Sulco</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center pe-3">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if pneus %}
+                        {% for p in pneus %}
+                        <tr>
+                            <td class="ps-3 fw-bold text-warning text-nowrap">
+                                <i class="fa-solid fa-tag me-1 text-muted"></i>{{ p.numero_fogo }}
+                            </td>
+                            <td>
+                                {% if p.viatura_prefixo %}
+                                    <div class="fw-bold text-white"><i class="fa-solid fa-car-side text-primary me-1"></i> Vtr {{ p.viatura_prefixo }}</div>
+                                {% else %}
+                                    <span class="badge bg-secondary"><i class="fa-solid fa-warehouse me-1"></i> Estoque P4</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-dark border border-secondary text-light">{{ p.posicao }}</span>
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-white">{{ p.marca }} {{ p.modelo or '' }}</div>
+                            </td>
+                            <td>
+                                <span class="text-light">{{ p.medida }}</span>
+                                {% if p.dot %}
+                                    <small class="text-muted d-block">DOT: {{ p.dot }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <span class="fw-bold text-white small">{{ p.sulco_mm }} mm</span>
+                                    <small class="text-muted" style="font-size: 0.72rem;">Min legal: 1.6mm</small>
+                                </div>
+                                {% set pct = [((p.sulco_mm / 8.0) * 100), 100]|min %}
+                                <div class="progress" style="height: 6px; background-color: rgba(255,255,255,0.1);">
+                                    <div class="progress-bar {% if p.sulco_mm >= 5.5 %}bg-success{% elif p.sulco_mm >= 3.0 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                         role="progressbar" 
+                                         style="width: {{ pct }}%;">
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                {% if p.status == 'Excelente' %}
+                                    <span class="badge bg-success"><i class="fa-solid fa-shield-halved me-1"></i> Excelente</span>
+                                {% elif p.status == 'Bom' %}
+                                    <span class="badge bg-info text-dark"><i class="fa-solid fa-check me-1"></i> Bom</span>
+                                {% elif p.status == 'Regular' %}
+                                    <span class="badge bg-warning text-dark"><i class="fa-solid fa-triangle-exclamation me-1"></i> Regular</span>
+                                {% elif p.status == 'Crítico / Substituir' %}
+                                    <span class="badge bg-danger"><i class="fa-solid fa-ban me-1"></i> Crítico / Trocar</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ p.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center pe-3 text-nowrap">
+                                <button type="button" class="btn btn-outline-warning btn-sm p-1 px-2" 
+                                        onclick="abrirModalMedicao('{{ p.id }}', '{{ p.numero_fogo }}', '{{ p.viatura_prefixo or '' }}', '{{ p.posicao }}', '{{ p.sulco_mm }}')"
+                                        title="Registrar Medição / Rodízio">
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </button>
+                                <form action="{{ url_for('excluir_pneu_route', pneu_id=p.id) }}" method="POST" class="d-inline ms-1" onsubmit="return confirm('Deseja excluir este pneu do inventário?');">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm p-1 px-2" title="Excluir Pneu">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-muted">
+                                <i class="fa-solid fa-circle-notch fs-2 d-block mb-2"></i>
+                                Nenhum pneu encontrado com os filtros selecionados.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: CADASTRAR NOVO PNEU -->
+<div class="modal fade" id="modalNovoPneu" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-tactical-card text-light border-tactical">
+            <div class="modal-header border-tactical bg-tactical-navy">
+                <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-circle-notch text-warning"></i>
+                    Cadastrar Pneu no Inventário
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('salvar_pneu_route') }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Número de Fogo / Identificação *</label>
+                            <input type="text" name="numero_fogo" class="form-control bg-dark text-light border-secondary" placeholder="Ex: BM-46-501" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Marca *</label>
+                            <input type="text" name="marca" class="form-control bg-dark text-light border-secondary" placeholder="Ex: Bridgestone, Pirelli" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Modelo</label>
+                            <input type="text" name="modelo" class="form-control bg-dark text-light border-secondary" placeholder="Ex: Dueler A/T, Scorpion">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Dimensão / Medida *</label>
+                            <input type="text" name="medida" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 265/65 R17" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">DOT (Semana/Ano)</label>
+                            <input type="text" name="dot" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 1224">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Profundidade de Sulco (mm) *</label>
+                            <input type="number" step="0.1" name="sulco_mm" class="form-control bg-dark text-light border-secondary" value="8.0" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Viatura Vinculada</label>
+                            <input type="text" name="viatura_prefixo" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 12402 (ou vazio p/ Estoque)" list="listaVtrsPneus">
+                            <datalist id="listaVtrsPneus">
+                                {% for v in viaturas_cadastradas %}
+                                    <option value="{{ v.prefixo }}">{{ v.placa }} - {{ v.modelo }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Posição</label>
+                            <select name="posicao" class="form-select bg-dark text-light border-secondary">
+                                <option value="Estoque">Almoxarifado / Estoque P4</option>
+                                <option value="Dianteiro Esquerdo">Dianteiro Esquerdo</option>
+                                <option value="Dianteiro Direito">Dianteiro Direito</option>
+                                <option value="Traseiro Esquerdo">Traseiro Esquerdo</option>
+                                <option value="Traseiro Direito">Traseiro Direito</option>
+                                <option value="Estepe">Estepe</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small text-muted">Observações</label>
+                            <input type="text" name="observacoes" class="form-control bg-dark text-light border-secondary" placeholder="Notas sobre instalação, estado do pneu, etc.">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-tactical bg-tactical-navy">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold">Cadastrar Pneu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: REGISTRAR MEDIÇÃO DE SULCO OU RODÍZIO -->
+<div class="modal fade" id="modalMedicaoPneu" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-tactical-card text-light border-tactical">
+            <div class="modal-header border-tactical bg-tactical-navy">
+                <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-arrows-rotate text-warning"></i>
+                    Registrar Medição de Sulco / Rodízio
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('medicao_pneu_route') }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small text-muted">Selecione o Pneu *</label>
+                            <select name="pneu_id" id="medicao_pneu_id" class="form-select bg-dark text-light border-secondary" required>
+                                <option value="">Selecione...</option>
+                                {% for p in pneus %}
+                                    <option value="{{ p.id }}">{{ p.numero_fogo }} - {{ p.marca }} {{ p.medida }} ({% if p.viatura_prefixo %}Vtr {{ p.viatura_prefixo }} - {{ p.posicao }}{% else %}Estoque{% endif %})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Tipo de Operação</label>
+                            <select name="tipo" class="form-select bg-dark text-light border-secondary">
+                                <option value="Medição de Sulco">Aferição Periódica de Sulco</option>
+                                <option value="Rodízio">Rodízio de Pneus</option>
+                                <option value="Reparo / Vulcanização">Reparo / Vulcanização</option>
+                                <option value="Descarte / Inoperante">Descarte / Inoperante</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Nova Profundidade de Sulco (mm) *</label>
+                            <input type="number" step="0.1" name="sulco_mm" id="medicao_sulco_mm" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 5.2" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Viatura</label>
+                            <input type="text" name="viatura" id="medicao_viatura" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 12402">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Nova Posição (se houve rodízio)</label>
+                            <select name="posicao" id="medicao_posicao" class="form-select bg-dark text-light border-secondary">
+                                <option value="Dianteiro Esquerdo">Dianteiro Esquerdo</option>
+                                <option value="Dianteiro Direito">Dianteiro Direito</option>
+                                <option value="Traseiro Esquerdo">Traseiro Esquerdo</option>
+                                <option value="Traseiro Direito">Traseiro Direito</option>
+                                <option value="Estepe">Estepe</option>
+                                <option value="Estoque">Estoque P4</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Odômetro da Viatura (km)</label>
+                            <input type="number" step="1" name="odometro" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 48000">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Responsável</label>
+                            <input type="text" name="responsavel" class="form-control bg-dark text-light border-secondary" value="{{ assinatura_padrao.nome }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small text-muted">Observações</label>
+                            <input type="text" name="observacao" class="form-control bg-dark text-light border-secondary" placeholder="Ex: Rodízio em X realizado conforme manual.">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-tactical bg-tactical-navy">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold">Salvar Registro</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function abrirModalMedicao(id, fogo, viatura, posicao, sulco) {
+    document.getElementById('medicao_pneu_id').value = id;
+    document.getElementById('medicao_sulco_mm').value = sulco;
+    document.getElementById('medicao_viatura').value = viatura;
+    document.getElementById('medicao_posicao').value = posicao;
+    var modal = new bootstrap.Modal(document.getElementById('modalMedicaoPneu'));
+    modal.show();
+}
+</script>
+{% endblock %}

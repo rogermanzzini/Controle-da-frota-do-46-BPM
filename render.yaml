@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: bpm46-controle-frota
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers=4 --bind=0.0.0.0:$PORT wsgi:application
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_DEBUG
+        value: "0"

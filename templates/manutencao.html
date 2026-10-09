@@ -1,0 +1,1506 @@
+{% extends "base.html" %}
+
+{% block title %}Manutenção &bull; {{ app_titulo }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom border-tactical gap-3">
+    <div>
+        <h2 class="h4 mb-1 text-white fw-bold d-flex align-items-center gap-2">
+            <i class="fa-solid fa-screwdriver-wrench text-warning"></i>
+            Gestão de Manutenção, Pastas por Viatura &amp; Atestados
+        </h2>
+        <p class="text-muted small mb-0">
+            Pastas digitais por viatura com arquivamento de OS, DANFE, NFS-e e emissão oficial de Atestados de Recebimento do 46º BPM.
+        </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-warning btn-sm px-3 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestadoRecebimento">
+            <i class="fa-solid fa-file-signature me-1"></i> Emitir Atestado de Recebimento (PDF)
+        </button>
+        <button type="button" class="btn btn-outline-warning btn-sm px-3 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalAdicionarVtrManutencao">
+            <i class="fa-solid fa-car-side me-1"></i> Cadastrar Viatura
+        </button>
+        <button type="button" class="btn btn-outline-info btn-sm px-3 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalAnexarArquivoViatura">
+            <i class="fa-solid fa-folder-plus me-1"></i> Anexar Arquivo à Viatura
+        </button>
+        <button type="button" class="btn btn-tactical-outline btn-sm px-3" data-bs-toggle="modal" data-bs-target="#modalNovaManutencao">
+            <i class="fa-solid fa-plus me-1"></i> Nova O.S.
+        </button>
+        <button type="button" class="btn btn-tactical-outline btn-sm px-3" data-bs-toggle="modal" data-bs-target="#modalNovoEquipamento">
+            <i class="fa-solid fa-boxes-stacked me-1"></i> Cadastrar Equipamento
+        </button>
+    </div>
+</div>
+
+<!-- KPIs do Módulo de Manutenção -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-tactical h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold d-block">Viaturas com Pasta</span>
+                    <span class="fs-3 fw-bold text-white">{{ pastas_viaturas|length }}</span>
+                </div>
+                <div class="kpi-icon-box bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">
+                    <i class="fa-solid fa-folder-tree fs-4"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Pastas digitais organizadas por viatura
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-tactical h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold d-block">Total de O.S.</span>
+                    <span class="fs-3 fw-bold text-white">{{ stats.total }}</span>
+                </div>
+                <div class="kpi-icon-box bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                    <i class="fa-solid fa-clipboard-list fs-4"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Registros cadastrados no sistema
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-tactical h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold d-block">Investimento Total</span>
+                    <span class="fs-3 fw-bold text-warning">R$ {{ "{:,.2f}".format(stats.custo_total).replace(',', 'X').replace('.', ',').replace('X', '.') }}</span>
+                </div>
+                <div class="kpi-icon-box bg-success bg-opacity-10 text-success border border-success border-opacity-25">
+                    <i class="fa-solid fa-sack-dollar fs-4"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Peças (DANFE) e Serviços (NFS-e)
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-tactical h-100 p-3">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold d-block">Em Oficina / Baixadas</span>
+                    <span class="fs-3 fw-bold {% if stats.em_andamento > 0 %}text-danger{% else %}text-success{% endif %}">{{ stats.em_andamento }}</span>
+                </div>
+                <div class="kpi-icon-box {% if stats.em_andamento > 0 %}bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25{% else %}bg-success bg-opacity-10 text-success border border-success border-opacity-25{% endif %}">
+                    <i class="fa-solid fa-triangle-exclamation fs-4"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Viaturas atualmente em manutenção
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dados de Assinatura do Atestador (Recebimento de Manutenção) - Igual a Combustíveis -->
+<div class="card card-tactical p-3 mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <span class="small fw-bold text-white">
+                <i class="fa-solid fa-signature text-warning me-1"></i> Assinatura do Atestador (Recebimento de Material/Serviço):
+            </span>
+            <span class="small text-secondary ms-1">
+                <strong class="text-info">{{ atestador_padrao.nome }}</strong> – {{ atestador_padrao.graduacao }} ({{ atestador_padrao.cargo }}) &bull; Id Func: <span class="font-monospace text-warning">{{ atestador_padrao.id_func }}</span>
+            </span>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary text-light py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAtestadorManutencao" aria-expanded="false">
+            <i class="fa-solid fa-pen-to-square me-1"></i> Editar Assinatura
+        </button>
+    </div>
+
+    <div class="collapse" id="collapseAtestadorManutencao">
+        <form action="{{ url_for('salvar_config_atestador_route') }}" method="POST">
+            <div class="pt-2 border-top border-secondary border-opacity-25 mt-2">
+                <div class="row g-2">
+                    <div class="col-md-4 col-12">
+                        <label class="form-label small text-secondary mb-1">Nome Completo do Militar</label>
+                        <input type="text" name="nome" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestador_padrao.nome }}" required placeholder="Ex: JULIANO INOCENTE VELEDA">
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-label small text-secondary mb-1">Graduação / Posto</label>
+                        <select name="graduacao" class="form-select form-select-sm bg-dark text-light border-secondary">
+                            {% for grad in graduacoes_militares %}
+                            <option value="{{ grad }}" {% if atestador_padrao.graduacao.upper() == grad.upper() %}selected{% endif %}>{{ grad }}</option>
+                            {% endfor %}
+                            {% if atestador_padrao.graduacao and atestador_padrao.graduacao not in graduacoes_militares %}
+                            <option value="{{ atestador_padrao.graduacao }}" selected>{{ atestador_padrao.graduacao }}</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 col-4">
+                        <label class="form-label small text-secondary mb-1">Id Funcional (Id Func)</label>
+                        <input type="text" name="id_func" class="form-control form-control-sm bg-dark text-light border-secondary font-monospace" value="{{ atestador_padrao.id_func }}" required placeholder="Ex: 3155358">
+                    </div>
+                    <div class="col-md-3 col-4">
+                        <label class="form-label small text-secondary mb-1">Função / Cargo</label>
+                        <select name="cargo" class="form-select form-select-sm bg-dark text-light border-secondary">
+                            {% for cargo in cargos_militares %}
+                            <option value="{{ cargo }}" {% if atestador_padrao.cargo == cargo %}selected{% endif %}>{{ cargo }}</option>
+                            {% endfor %}
+                            {% if atestador_padrao.cargo and atestador_padrao.cargo not in cargos_militares %}
+                            <option value="{{ atestador_padrao.cargo }}" selected>{{ atestador_padrao.cargo }}</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2 pt-2">
+                    <small class="text-secondary">
+                        <i class="fa-solid fa-circle-info text-info me-1"></i> Carregado automaticamente na emissão dos Atestados de Recebimento em PDF.
+                    </small>
+                    <button type="submit" class="btn btn-primary btn-sm fw-bold">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Salvar Assinatura Padrão
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Abas de Navegação Interna: Pastas vs Ordens de Serviço vs Equipamentos -->
+<ul class="nav nav-pills mb-4 border-bottom border-tactical pb-2 gap-2" id="pills-tab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active px-4 fw-semibold" id="pills-pastas-tab" data-bs-toggle="pill" data-bs-target="#pills-pastas" type="button" role="tab">
+            <i class="fa-solid fa-folder-open me-2 text-warning"></i> Pastas por Viatura &amp; Arquivos ({{ pastas_viaturas|length }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link px-4 fw-semibold" id="pills-os-tab" data-bs-toggle="pill" data-bs-target="#pills-os" type="button" role="tab">
+            <i class="fa-solid fa-wrench me-2"></i> Ordens de Serviço &amp; Manutenções ({{ manutencoes|length }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link px-4 fw-semibold" id="pills-equip-tab" data-bs-toggle="pill" data-bs-target="#pills-equip" type="button" role="tab">
+            <i class="fa-solid fa-toolbox me-2"></i> Equipamentos da Unidade ({{ equipamentos|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="pills-tabContent">
+    <!-- ABA 1: PASTAS POR VIATURA -->
+    <div class="tab-pane fade show active" id="pills-pastas" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="fw-bold text-white mb-0">
+                    <i class="fa-solid fa-folder-tree text-warning me-2"></i> Pastas Digitais das Viaturas
+                </h5>
+                <small class="text-secondary">
+                    Cada viatura possui uma pasta dedicada para guarda de Ordens de Serviço, DANFE, NFS-e e Atestados de Recebimento emitidos.
+                </small>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            {% for vtr in pastas_viaturas %}
+            <div class="col-md-6 col-xl-4">
+                <div class="card card-tactical h-100 border border-secondary border-opacity-25 hover-shadow transition">
+                    <div class="card-body p-3 d-flex flex-column justify-content-between">
+                        <div>
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="bg-warning bg-opacity-10 text-warning p-2 rounded border border-warning border-opacity-25">
+                                        <i class="fa-solid fa-folder fs-4"></i>
+                                    </div>
+                                    <div>
+                                        <h5 class="fw-bold text-white mb-0">BM {{ vtr.prefixo }}</h5>
+                                        <span class="badge bg-secondary bg-opacity-50 text-light font-monospace small">
+                                            {{ vtr.placa or 'S/ PLACA' }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 small">
+                                    <i class="fa-solid fa-location-dot me-1"></i> {{ vtr.cidade_carga }}
+                                </span>
+                            </div>
+
+                            <div class="mb-3 ps-1">
+                                <div class="text-light fw-semibold small">
+                                    {% if vtr.marca and vtr.marca|upper not in vtr.modelo|upper %}
+                                        {{ vtr.marca }} {{ vtr.modelo }}
+                                    {% else %}
+                                        {{ vtr.modelo }}
+                                    {% endif %}
+                                </div>
+                                <small class="text-secondary d-block">
+                                    Carga: 46º BPM &bull; {{ vtr.cidade_carga }}
+                                </small>
+                            </div>
+
+                            <!-- Estatísticas da Pasta -->
+                            <div class="row g-2 text-center mb-3 bg-dark bg-opacity-50 p-2 rounded border border-secondary border-opacity-25">
+                                <div class="col-4 border-end border-secondary border-opacity-25">
+                                    <div class="fw-bold text-warning fs-6">{{ vtr.total_arquivos }}</div>
+                                    <div class="text-muted" style="font-size: 0.72rem;">ARQUIVOS</div>
+                                </div>
+                                <div class="col-4 border-end border-secondary border-opacity-25">
+                                    <div class="fw-bold text-white fs-6">{{ vtr.total_manutencoes }}</div>
+                                    <div class="text-muted" style="font-size: 0.72rem;">O.S. TOTAL</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="fw-bold text-success fs-6">R$ {{ "{:,.0f}".format(vtr.total_gasto).replace(',', '.') }}</div>
+                                    <div class="text-muted" style="font-size: 0.72rem;">GASTO</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botões de Ação na Pasta -->
+                        <div class="d-flex gap-2 pt-2 border-top border-secondary border-opacity-25">
+                            <button type="button" class="btn btn-outline-warning btn-sm flex-fill fw-semibold btn-abrir-pasta" data-prefixo="{{ vtr.prefixo }}" data-modelo="{% if vtr.marca and vtr.marca|upper not in vtr.modelo|upper %}{{ vtr.marca }} {% endif %}{{ vtr.modelo }}" data-placa="{{ vtr.placa }}">
+                                <i class="fa-solid fa-folder-open me-1"></i> Abrir Pasta
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm px-2 btn-anexar-rapido" data-prefixo="{{ vtr.prefixo }}" title="Anexar arquivo diretamente nesta pasta">
+                                <i class="fa-solid fa-upload"></i>
+                            </button>
+                            <button type="button" class="btn btn-warning btn-sm px-2 fw-bold text-dark btn-emitir-atestado-vtr" data-prefixo="{{ vtr.prefixo }}" data-placa="{{ vtr.placa }}" data-marca="{{ vtr.marca }}" data-modelo="{{ vtr.modelo }}" data-cidade="{{ vtr.cidade_carga }}" title="Emitir Atestado de Recebimento para esta viatura">
+                                <i class="fa-solid fa-file-signature"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center py-5 text-muted">
+                <i class="fa-solid fa-folder-open fs-1 d-block mb-2"></i>
+                Nenhuma pasta de viatura localizada.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ABA 2: ORDENS DE SERVIÇO -->
+    <div class="tab-pane fade" id="pills-os" role="tabpanel">
+        <!-- Filtros Rápidos -->
+        <div class="card card-tactical p-3 mb-4">
+            <form method="GET" action="{{ url_for('modulo_manutencao') }}" class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small text-muted mb-1">Filtrar por Status:</label>
+                    <select name="status" class="form-select form-select-sm bg-dark text-light border-secondary">
+                        <option value="Todos" {% if filtro_status == 'Todos' %}selected{% endif %}>Todos os Status</option>
+                        <option value="Concluída" {% if filtro_status == 'Concluída' %}selected{% endif %}>Concluída</option>
+                        <option value="Em Andamento" {% if filtro_status == 'Em Andamento' %}selected{% endif %}>Em Andamento (Na Oficina)</option>
+                        <option value="Aguardando Peças" {% if filtro_status == 'Aguardando Peças' %}selected{% endif %}>Aguardando Peças</option>
+                        <option value="Agendada" {% if filtro_status == 'Agendada' %}selected{% endif %}>Agendada</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small text-muted mb-1">Filtrar por Viatura:</label>
+                    <select name="viatura" class="form-select form-select-sm bg-dark text-light border-secondary">
+                        <option value="Todos">Todas as Viaturas</option>
+                        {% for v in viaturas_cadastradas %}
+                            <option value="{{ v.prefixo or v.placa }}" {% if filtro_viatura == (v.prefixo or v.placa) %}selected{% endif %}>
+                                {{ v.prefixo or v.placa }} - {{ v.modelo or '' }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm px-3">
+                        <i class="fa-solid fa-filter me-1"></i> Filtrar
+                    </button>
+                    <a href="{{ url_for('modulo_manutencao') }}" class="btn btn-outline-secondary btn-sm px-3">
+                        Limpar
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tabela de Manutenções -->
+        <div class="card card-tactical">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover align-middle mb-0">
+                        <thead class="bg-tactical-navy text-muted small text-uppercase">
+                            <tr>
+                                <th class="ps-3">Data</th>
+                                <th>Viatura</th>
+                                <th>Tipo</th>
+                                <th>Oficina / Fornecedor</th>
+                                <th>Serviços / Faturamento</th>
+                                <th class="text-end">Valor Total</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-center pe-3">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if manutencoes %}
+                                {% for m in manutencoes %}
+                                <tr>
+                                    <td class="ps-3 text-nowrap">
+                                        <div class="fw-semibold text-white">{{ m.data_servico }}</div>
+                                        {% if m.odometro and m.odometro > 0 %}
+                                            <small class="text-muted"><i class="fa-solid fa-gauge-high me-1"></i>{{ "{:,.0f}".format(m.odometro).replace(',', '.') }} km</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-white">BM {{ m.viatura_prefixo or m.viatura_placa or 'S/V' }}</div>
+                                        <small class="text-secondary">{{ m.viatura_modelo or m.viatura_placa or '' }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if m.tipo == 'Preventiva' %}bg-success bg-opacity-25 text-success border border-success border-opacity-50{% elif m.tipo == 'Corretiva' %}bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50{% else %}bg-info bg-opacity-25 text-info border border-info border-opacity-50{% endif %}">
+                                            {{ m.tipo }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="text-light">{{ m.empresa_nome or m.oficina or 'Oficina Credenciada' }}</span>
+                                        {% if m.empresa_cnpj %}
+                                            <small class="text-muted d-block font-monospace" style="font-size: 0.72rem;">CNPJ: {{ m.empresa_cnpj }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td style="max-width: 320px;">
+                                        <div class="text-truncate text-white" title="{{ m.descricao_servico }}">{{ m.descricao_servico }}</div>
+                                        <div class="d-flex gap-1 mt-1">
+                                            {% if m.numero_os %}
+                                                <span class="badge bg-warning small font-monospace fw-bold" style="color: #000000 !important; font-size: 0.72rem;"><i class="fa-solid fa-folder-closed me-1" style="color: #000000 !important;"></i>OS: {{ m.numero_os }}</span>
+                                            {% endif %}
+                                            {% if m.numero_danfe %}
+                                                <span class="badge bg-secondary bg-opacity-50 text-warning small" style="font-size: 0.7rem;">DANFE: {{ m.numero_danfe }}</span>
+                                            {% endif %}
+                                            {% if m.numero_nfse %}
+                                                <span class="badge bg-secondary bg-opacity-50 text-info small" style="font-size: 0.7rem;">NFS-e: {{ m.numero_nfse }}</span>
+                                            {% endif %}
+                                            {% if m.arquivo_atestado_pdf %}
+                                                <span class="badge bg-success bg-opacity-25 text-success small" style="font-size: 0.7rem;"><i class="fa-solid fa-file-pdf me-1"></i>Atestado OK</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="text-end fw-bold text-warning text-nowrap">
+                                        R$ {{ "{:,.2f}".format(m.valor_total).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if m.status == 'Concluída' %}
+                                            <span class="badge bg-success"><i class="fa-solid fa-check me-1"></i> Concluída</span>
+                                        {% elif m.status == 'Em Andamento' %}
+                                            <span class="badge bg-warning text-dark"><i class="fa-solid fa-clock-rotate-left me-1"></i> Na Oficina</span>
+                                        {% elif m.status == 'Aguardando Peças' %}
+                                            <span class="badge bg-danger"><i class="fa-solid fa-hourglass-half me-1"></i> Aguardando Peças</span>
+                                        {% else %}
+                                            <span class="badge bg-info text-dark"><i class="fa-solid fa-calendar me-1"></i> Agendada</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center pe-3 text-nowrap">
+                                        <button type="button" class="btn btn-outline-warning btn-sm p-1 px-2 btn-abrir-pasta" data-prefixo="{{ m.viatura_prefixo }}" title="Abrir pasta digital da viatura">
+                                            <i class="fa-solid fa-folder-open"></i>
+                                        </button>
+                                        <form action="{{ url_for('excluir_manutencao_route', manutencao_id=m.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Deseja excluir este registro de manutenção?');">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm p-1 px-2" title="Excluir O.S.">
+                                                <i class="fa-solid fa-trash-can"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">
+                                        <i class="fa-solid fa-clipboard-check fs-2 d-block mb-2"></i>
+                                        Nenhuma ordem de serviço cadastrada com os filtros atuais.
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ABA 3: EQUIPAMENTOS DA UNIDADE -->
+    <div class="tab-pane fade" id="pills-equip" role="tabpanel">
+        <div class="card card-tactical">
+            <div class="card-header bg-tactical-navy d-flex justify-content-between align-items-center py-3">
+                <span class="fw-bold text-white"><i class="fa-solid fa-toolbox text-warning me-2"></i>Equipamentos Operacionais e Patrimoniados do 46º BPM</span>
+                <button type="button" class="btn btn-tactical-outline btn-sm" data-bs-toggle="modal" data-bs-target="#modalNovoEquipamento">
+                    <i class="fa-solid fa-plus me-1"></i> Adicionar Equipamento
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover align-middle mb-0">
+                        <thead class="bg-tactical-navy text-muted small text-uppercase">
+                            <tr>
+                                <th class="ps-3">Patrimônio</th>
+                                <th>Nome do Equipamento</th>
+                                <th>Tipo</th>
+                                <th>Modelo / Série</th>
+                                <th>Viatura Vinculada</th>
+                                <th>Fração / Carga</th>
+                                <th class="text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for eq in equipamentos %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-warning font-monospace">{{ eq.patrimonio }}</td>
+                                <td class="fw-semibold text-white">{{ eq.nome }}</td>
+                                <td><span class="badge bg-secondary">{{ eq.tipo }}</span></td>
+                                <td>
+                                    <div class="text-light">{{ eq.modelo or '-' }}</div>
+                                    <small class="text-muted font-monospace">{{ eq.serie or '' }}</small>
+                                </td>
+                                <td>
+                                    {% if eq.viatura_prefixo %}
+                                        <span class="badge bg-info text-dark">BM {{ eq.viatura_prefixo }}</span>
+                                    {% else %}
+                                        <span class="text-muted small">Reserva Técnica</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ eq.fracao }}</td>
+                                <td class="text-center">
+                                    {% if eq.status == 'Operacional' %}
+                                        <span class="badge bg-success">Operacional</span>
+                                    {% elif eq.status == 'Em Manutenção' %}
+                                        <span class="badge bg-warning text-dark">Em Manutenção</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">{{ eq.status }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================================== -->
+<!-- MODAIS DO MÓDULO DE MANUTENÇÃO                                                -->
+<!-- ============================================================================== -->
+
+<!-- 1. MODAL: EMITIR ATESTADO DE RECEBIMENTO DE MATERIAL/SERVIÇO (PDF) -->
+<div class="modal fade" id="modalEmitirAtestadoRecebimento" tabindex="-1" aria-labelledby="modalEmitirAtestadoRecebimentoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content bg-tactical-card text-light border border-secondary border-opacity-25 shadow">
+            <div class="modal-header border-secondary border-opacity-25 bg-tactical-navy">
+                <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2" id="modalEmitirAtestadoRecebimentoLabel">
+                    <i class="fa-solid fa-file-signature text-warning"></i>
+                    Emitir Atestado de Recebimento de Material / Serviço (PDF)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('gerar_atestado_recebimento_route') }}" method="POST" enctype="multipart/form-data" id="formAtestadoRecebimento">
+                <div class="modal-body p-4">
+                    <!-- 1. Viatura Alvo -->
+                    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 mb-3">
+                        <h6 class="fw-bold text-warning mb-2 small text-uppercase">
+                            <i class="fa-solid fa-car me-1"></i> 1. Identificação da Viatura
+                        </h6>
+                        <div class="row g-2">
+                            <div class="col-md-3 col-12">
+                                <label class="form-label small text-secondary mb-1">Viatura (Prefixo) *</label>
+                                <select name="viatura_prefixo" id="atestado_vtr_select" class="form-select form-select-sm bg-dark text-light border-secondary" required>
+                                    <option value="">Selecione a viatura...</option>
+                                    {% for v in viaturas_cadastradas %}
+                                        <option value="{{ v.prefixo }}" data-placa="{{ v.placa }}" data-marca="{{ v.marca or '' }}" data-modelo="{{ v.modelo or '' }}" data-cidade="{{ v.cidade_carga or 'Bagé' }}">
+                                            BM {{ v.prefixo }} - {% if v.marca and v.marca|upper not in v.modelo|upper %}{{ v.marca }} {% endif %}{{ v.modelo or '' }} ({{ v.placa or '' }}) - {{ v.cidade_carga or 'Bagé' }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2 col-6">
+                                <label class="form-label small text-secondary mb-1">Marca</label>
+                                <input type="text" name="viatura_marca" id="atestado_vtr_marca" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Ex: Toyota">
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-label small text-secondary mb-1">Modelo</label>
+                                <input type="text" name="viatura_modelo" id="atestado_vtr_modelo" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Ex: Hilux">
+                            </div>
+                            <div class="col-md-2 col-6">
+                                <label class="form-label small text-secondary mb-1">Placa</label>
+                                <input type="text" name="viatura_placa" id="atestado_vtr_placa" class="form-control form-control-sm bg-dark text-light border-secondary font-monospace" placeholder="TQU0F72">
+                            </div>
+                            <div class="col-md-2 col-6">
+                                <label class="form-label small text-secondary mb-1">Carga da Cidade</label>
+                                <input type="text" name="cidade_carga" id="atestado_vtr_cidade" class="form-control form-control-sm bg-dark text-light border-secondary" value="Bagé">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Modalidade do Documento Fiscal (Rádios com Diferenciação) -->
+                    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 mb-3">
+                        <h6 class="fw-bold text-warning mb-2 small text-uppercase">
+                            <i class="fa-solid fa-file-invoice-dollar me-1"></i> 2. Modalidade de Faturamento (Divergência de Texto Oficial)
+                        </h6>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4 col-12">
+                                <label class="p-2 rounded bg-tactical-navy border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start">
+                                    <div class="form-check">
+                                        <input class="form-check-input radio-tipo-fiscal" type="radio" name="tipo_documento_fiscal" id="tipoNfse" value="nfse" checked>
+                                        <span class="form-check-label fw-bold text-info">
+                                            <i class="fa-solid fa-wrench me-1"></i> Somente NFS-e (Serviço)
+                                        </span>
+                                    </div>
+                                    <small class="text-secondary d-block mt-1 ps-4" style="font-size: 0.78rem;">
+                                        Gera atestado declarando realização de serviços da Nota Fiscal de Serviços Eletrônica.
+                                    </small>
+                                </label>
+                            </div>
+                            <div class="col-md-4 col-12">
+                                <label class="p-2 rounded bg-tactical-navy border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start">
+                                    <div class="form-check">
+                                        <input class="form-check-input radio-tipo-fiscal" type="radio" name="tipo_documento_fiscal" id="tipoDanfe" value="danfe">
+                                        <span class="form-check-label fw-bold text-warning">
+                                            <i class="fa-solid fa-box-open me-1"></i> Somente DANFE (Material)
+                                        </span>
+                                    </div>
+                                    <small class="text-secondary d-block mt-1 ps-4" style="font-size: 0.78rem;">
+                                        Gera atestado declarando recebimento de peças e materiais constantes na DANFE.
+                                    </small>
+                                </label>
+                            </div>
+                            <div class="col-md-4 col-12">
+                                <label class="p-2 rounded bg-tactical-navy border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start">
+                                    <div class="form-check">
+                                        <input class="form-check-input radio-tipo-fiscal" type="radio" name="tipo_documento_fiscal" id="tipoAmbos" value="ambos">
+                                        <span class="form-check-label fw-bold text-success">
+                                            <i class="fa-solid fa-layer-group me-1"></i> Ambas (DANFE + NFS-e)
+                                        </span>
+                                    </div>
+                                    <small class="text-secondary d-block mt-1 ps-4" style="font-size: 0.78rem;">
+                                        Declara simultaneamente o material na DANFE e os serviços na NFS-e.
+                                    </small>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Campos Fiscais Dinâmicos -->
+                        <div class="row g-2">
+                            <!-- Bloco DANFE -->
+                            <div class="col-md-6 col-12" id="bloco_campo_danfe" style="display: none;">
+                                <div class="p-2 rounded border border-warning border-opacity-25 bg-black bg-opacity-25">
+                                    <div class="fw-bold text-warning small mb-1"><i class="fa-solid fa-receipt me-1"></i> Dados da DANFE (Material)</div>
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <label class="form-label small text-secondary mb-1">Nº DANFE</label>
+                                            <input type="text" name="numero_danfe" id="atestado_num_danfe" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Ex: 000.211.719">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small text-secondary mb-1">Valor DANFE (R$)</label>
+                                            <input type="text" name="valor_danfe" id="atestado_val_danfe" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="0,00">
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small text-secondary mb-1">Anexo do Arquivo DANFE (PDF/XML/Img)</label>
+                                            <input type="file" name="arquivo_danfe" id="arquivo_danfe_input" accept=".xml,.pdf,.jpg,.jpeg,.png" class="form-control form-control-sm bg-dark text-light border-secondary">
+                                            <small id="danfe_extracao_status" class="text-success mt-1 d-none"><i class="fa-solid fa-circle-check me-1"></i>Dados extraídos automaticamente</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bloco NFS-e -->
+                            <div class="col-md-6 col-12" id="bloco_campo_nfse">
+                                <div class="p-2 rounded border border-info border-opacity-25 bg-black bg-opacity-25">
+                                    <div class="fw-bold text-info small mb-1"><i class="fa-solid fa-wrench me-1"></i> Dados da NFS-e (Serviços)</div>
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <label class="form-label small text-secondary mb-1">Nº NFS-e</label>
+                                            <input type="text" name="numero_nfse" id="atestado_num_nfse" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Ex: 169">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small text-secondary mb-1">Valor NFS-e (R$)</label>
+                                            <input type="text" name="valor_nfse" id="atestado_val_nfse" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="0,00">
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small text-secondary mb-1">Anexo do Arquivo NFS-e (PDF/XML/Img)</label>
+                                            <input type="file" name="arquivo_nfse" id="arquivo_nfse_input" accept=".xml,.pdf,.jpg,.jpeg,.png" class="form-control form-control-sm bg-dark text-light border-secondary">
+                                            <small id="nfse_extracao_status" class="text-success mt-1 d-none"><i class="fa-solid fa-circle-check me-1"></i>Dados extraídos automaticamente</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Anexo O.S., Número da OS Ticket Log e Empresa -->
+                        <div class="row g-2 mt-2">
+                            <div class="col-md-3 col-6">
+                                <label class="form-label small text-warning mb-1 fw-bold">
+                                    <i class="fa-solid fa-file-invoice me-1"></i>Nº OS Ticket Log *
+                                </label>
+                                <input type="text" name="numero_os" id="atestado_num_os" maxlength="8" class="form-control form-control-sm bg-warning border-warning font-monospace fw-bold" style="color: #000000 !important;" placeholder="Ex: 19525623" required>
+                                <small class="text-secondary" style="font-size: 0.72rem;">8 algarismos (Nome da pasta)</small>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-label small text-secondary mb-1">Anexo da O.S. (Ticket Log)</label>
+                                <input type="file" name="arquivo_os" id="arquivo_os_input" accept=".xml,.pdf,.jpg,.jpeg,.png" class="form-control form-control-sm bg-dark text-light border-secondary">
+                                <small id="os_extracao_status" class="text-success mt-1 d-none"><i class="fa-solid fa-circle-check me-1"></i>Dados da OS extraídos</small>
+                            </div>
+                            <div class="col-md-3 col-12">
+                                <label class="form-label small text-secondary mb-1">Empresa / Razão Social *</label>
+                                <input type="text" name="empresa_nome" id="atestado_empresa_nome" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Ex: LEONARDO NOBLE BRUXEL" value="{{ empresa_padrao.empresa_nome }}" required>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-label small text-secondary mb-1">CNPJ da Empresa *</label>
+                                <input type="text" name="empresa_cnpj" id="atestado_empresa_cnpj" class="form-control form-control-sm bg-dark text-light border-secondary font-monospace" placeholder="15.229.039/0001-52" value="{{ empresa_padrao.empresa_cnpj }}" required>
+                            </div>
+                        </div>
+                        <!-- Salvar empresa como padrão -->
+                        <div class="mt-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="salvar_empresa_padrao" id="checkSalvarEmpresaPadrao" value="1">
+                                <label class="form-check-label small text-secondary" for="checkSalvarEmpresaPadrao">
+                                    <i class="fa-solid fa-floppy-disk me-1"></i> Salvar empresa e CNPJ como padrão para próximos atestados
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Militar Responsável pelo Recebimento (Atestador Editável) -->
+                    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold text-warning mb-0 small text-uppercase">
+                                <i class="fa-solid fa-signature me-1"></i> 3. Militar Responsável pelo Recebimento (Atestador)
+                            </h6>
+                            <span class="badge bg-secondary bg-opacity-50 text-light small" style="font-size: 0.72rem;">
+                                <i class="fa-solid fa-pen-to-square me-1"></i> Assinatura Editável
+                            </span>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-md-4 col-12">
+                                <label class="form-label small text-secondary mb-1">Nome Completo</label>
+                                <input type="text" name="responsavel_nome" id="atestado_resp_nome" class="form-control form-control-sm bg-dark text-light border-secondary fw-semibold" value="{{ atestador_padrao.nome }}" required placeholder="Ex: JULIANO INOCENTE VELEDA">
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-label small text-secondary mb-1">Graduação</label>
+                                <select name="responsavel_grad" id="atestado_resp_grad" class="form-select form-select-sm bg-dark text-light border-secondary">
+                                    {% for grad in graduacoes_militares %}
+                                    <option value="{{ grad }}" {% if atestador_padrao.graduacao.upper() == grad.upper() %}selected{% endif %}>{{ grad }}</option>
+                                    {% endfor %}
+                                    {% if atestador_padrao.graduacao and atestador_padrao.graduacao not in graduacoes_militares %}
+                                    <option value="{{ atestador_padrao.graduacao }}" selected>{{ atestador_padrao.graduacao }}</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            <div class="col-md-3 col-4">
+                                <label class="form-label small text-secondary mb-1">Identificação Funcional (Id Func)</label>
+                                <input type="text" name="responsavel_id_func" id="atestado_resp_idfunc" class="form-control form-control-sm bg-dark text-light border-secondary font-monospace" value="{{ atestador_padrao.id_func }}" required placeholder="Ex: 3155358">
+                            </div>
+                            <div class="col-md-3 col-4">
+                                <label class="form-label small text-secondary mb-1">Cargo / Função</label>
+                                <select name="responsavel_cargo" id="atestado_resp_cargo" class="form-select form-select-sm bg-dark text-light border-secondary">
+                                    {% for cargo in cargos_militares %}
+                                    <option value="{{ cargo }}" {% if atestador_padrao.cargo == cargo %}selected{% endif %}>{{ cargo }}</option>
+                                    {% endfor %}
+                                    {% if atestador_padrao.cargo and atestador_padrao.cargo not in cargos_militares %}
+                                    <option value="{{ atestador_padrao.cargo }}" selected>{{ atestador_padrao.cargo }}</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Prévia Visual da Assinatura no PDF -->
+                        <div class="p-2 rounded bg-black bg-opacity-25 border border-secondary border-opacity-25 mt-2">
+                            <small class="text-secondary d-block" style="font-size: 0.72rem;">PRÉVIA DA ASSINATURA NO ATESTADO (PDF):</small>
+                            <span class="fw-bold text-white" id="preview_atestador_nome">{{ atestador_padrao.nome }}</span>
+                            <span class="text-secondary small"> – </span>
+                            <span class="text-info small" id="preview_atestador_cargo">{{ atestador_padrao.graduacao }} – {{ atestador_padrao.cargo }}</span>
+                            <span class="text-muted small ms-2">(Id Func: <span class="font-monospace text-warning" id="preview_atestador_idfunc">{{ atestador_padrao.id_func }}</span>)</span>
+                        </div>
+
+                        <!-- Checkbox Salvar como Padrão Permanente -->
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="salvar_como_padrao_atestador" value="1" id="checkSalvarPadraoAtestador">
+                            <label class="form-check-label small text-secondary" for="checkSalvarPadraoAtestador">
+                                Salvar este militar e assinatura como novo padrão para os próximos atestados
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 4. Texto do Atestado (Editável com Prévia Dinâmica) -->
+                    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label for="textareaTextoAtestadoRecebimento" class="form-label small fw-bold text-light mb-0">
+                                <i class="fa-solid fa-file-pen text-warning me-1"></i> Texto do Atestado de Recebimento (Editável):
+                            </label>
+                            <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" id="btnAtualizarTextoRecebimento" style="font-size: 0.75rem;" title="Recalcula e preenche o texto padrão oficial conforme os campos preenchidos acima">
+                                <i class="fa-solid fa-rotate-left me-1"></i> Restaurar Texto Padrão
+                            </button>
+                        </div>
+                        <small class="text-secondary d-block mb-2" style="font-size: 0.78rem;">
+                            O texto é gerado automaticamente de acordo com as divergências oficiais (somente NFS-e, somente DANFE ou ambas). Você pode editá-lo livremente caso haja particularidades.
+                        </small>
+                        <textarea 
+                            name="texto_atestado" 
+                            id="textareaTextoAtestadoRecebimento" 
+                            class="form-control bg-dark text-light border-secondary small font-monospace" 
+                            rows="6" 
+                            style="font-size: 0.84rem; line-height: 1.5; resize: vertical;"
+                            placeholder="O texto oficial do atestado será gerado automaticamente aqui..."
+                        ></textarea>
+                    </div>
+
+                    <small class="text-muted d-block">
+                        <i class="fa-solid fa-circle-info text-info me-1"></i>
+                        Ao emitir o atestado, os arquivos anexados (OS, DANFE, NFS-e) e o próprio PDF gerado serão gravados automaticamente dentro da <strong>pasta digital da viatura</strong> no sistema.
+                    </small>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25 bg-tactical-navy">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold px-4 text-dark shadow-sm">
+                        <i class="fa-solid fa-file-pdf me-1"></i> Gerar Atestado em PDF e Salvar na Pasta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 2. MODAL: VISUALIZAR PASTA DA VIATURA COM ARQUIVOS ANEXADOS -->
+<div class="modal fade" id="modalVerPastaViatura" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-tactical-card text-light border border-secondary border-opacity-25 shadow">
+            <div class="modal-header border-secondary border-opacity-25 bg-tactical-navy">
+                <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-folder-open text-warning"></i>
+                    <span id="modalPastaTitulo">Pasta da Viatura</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3 p-2 bg-dark rounded border border-secondary border-opacity-25">
+                    <div>
+                        <div class="fw-bold text-white small" id="modalPastaSubtitulo">BM 00000 - Modelo</div>
+                        <div class="text-secondary small font-monospace" id="modalPastaCaminho" style="font-size: 0.75rem;">uploads/manutencao/viaturas/...</div>
+                    </div>
+                    <button type="button" class="btn btn-outline-info btn-sm px-3" id="btnAnexarDiretoNaPasta">
+                        <i class="fa-solid fa-upload me-1"></i> Anexar Arquivo
+                    </button>
+                </div>
+
+                <div id="modalPastaListaArquivos">
+                    <!-- Preenchido via JavaScript -->
+                    <div class="text-center py-4 text-muted">
+                        <i class="fa-solid fa-spinner fa-spin fs-3 mb-2"></i>
+                        Carregando arquivos da viatura...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary border-opacity-25 bg-tactical-navy">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 3. MODAL: ANEXAR ARQUIVO AVULSO À VIATURA -->
+<div class="modal fade" id="modalAnexarArquivoViatura" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-tactical-card text-light border border-secondary border-opacity-25 shadow">
+            <div class="modal-header border-secondary border-opacity-25 bg-tactical-navy">
+                <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-folder-plus text-info"></i>
+                    Anexar Documento à Pasta da Viatura
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('upload_arquivo_viatura_route') }}" method="POST" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary mb-1">Viatura Destino *</label>
+                        <select name="viatura_prefixo" id="selectAnexoViatura" class="form-select bg-dark text-light border-secondary" required>
+                            <option value="">Selecione a viatura...</option>
+                            {% for v in viaturas_cadastradas %}
+                                <option value="{{ v.prefixo }}">BM {{ v.prefixo }} - {{ v.modelo or '' }} ({{ v.placa or '' }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary mb-1">Tipo de Documento *</label>
+                        <select name="tipo_documento" class="form-select bg-dark text-light border-secondary" required>
+                            <option value="OS">Ordem de Serviço (OS)</option>
+                            <option value="DANFE">Nota Fiscal de Material (DANFE)</option>
+                            <option value="NFSE">Nota Fiscal de Serviços (NFS-e)</option>
+                            <option value="ATESTADO">Atestado de Recebimento</option>
+                            <option value="OUTRO">Outro Documento / Laudo / Orçamento</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary mb-1">Descrição / Referência</label>
+                        <input type="text" name="descricao" class="form-control bg-dark text-light border-secondary" placeholder="Ex: NF nº 169 de conserto do radiador">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary mb-1">Nº OS Ticket Log (Subpasta com 8 dígitos) - Opcional</label>
+                        <input type="text" name="pasta_os" id="anexo_pasta_os" maxlength="8" class="form-control form-control-sm bg-warning border-warning font-monospace fw-bold" style="color: #000000 !important;" placeholder="Ex: 19525623 (Deixe em branco para raiz da viatura)">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary mb-1">Arquivo (PDF, Imagem, DOCX ou XML) *</label>
+                        <input type="file" name="arquivo" class="form-control bg-dark text-light border-secondary" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25 bg-tactical-navy">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-info btn-sm fw-bold px-4 text-dark">
+                        <i class="fa-solid fa-cloud-arrow-up me-1"></i> Enviar para a Pasta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 4. MODAL: NOVA ORDEM DE SERVIÇO CONVENCIONAL -->
+<div class="modal fade" id="modalNovaManutencao" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-tactical-card text-light border-tactical">
+            <div class="modal-header border-tactical bg-tactical-navy">
+                <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-plus text-warning"></i>
+                    Registrar Nova Ordem de Serviço
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('salvar_manutencao_route') }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Data do Serviço *</label>
+                            <input type="date" name="data_servico" class="form-control bg-dark text-light border-secondary" value="{{ agora.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Tipo de Manutenção</label>
+                            <select name="tipo" class="form-select bg-dark text-light border-secondary">
+                                <option value="Preventiva">Preventiva</option>
+                                <option value="Corretiva">Corretiva</option>
+                                <option value="Revisão Periódica">Revisão Periódica</option>
+                                <option value="Socorro Mecânico">Socorro Mecânico</option>
+                                <option value="Funilaria / Pintura">Funilaria / Pintura</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Status</label>
+                            <select name="status" class="form-select bg-dark text-light border-secondary">
+                                <option value="Concluída">Concluída</option>
+                                <option value="Em Andamento">Em Andamento (Na Oficina)</option>
+                                <option value="Aguardando Peças">Aguardando Peças</option>
+                                <option value="Agendada">Agendada</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Viatura (Prefixo)</label>
+                            <input type="text" name="viatura_prefixo" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 14895" list="listaViaturas">
+                            <datalist id="listaViaturas">
+                                {% for v in viaturas_cadastradas %}
+                                    <option value="{{ v.prefixo }}">{{ v.placa }} - {{ v.modelo }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Placa</label>
+                            <input type="text" name="viatura_placa" class="form-control bg-dark text-light border-secondary" placeholder="Ex: TQU0F72">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Odômetro Atual (km)</label>
+                            <input type="number" step="1" name="odometro" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 45000">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Oficina / Fornecedor / Concessionária</label>
+                            <input type="text" name="oficina" class="form-control bg-dark text-light border-secondary" placeholder="Ex: Borracharia do Alemão">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Valor Total da Manutenção (R$)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark text-muted border-secondary">R$</span>
+                                <input type="text" name="valor_total" class="form-control bg-dark text-light border-secondary" placeholder="0,00">
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small text-muted">Descrição dos Serviços Executados *</label>
+                            <textarea name="descricao_servico" class="form-control bg-dark text-light border-secondary" rows="3" placeholder="Descreva os serviços realizados na viatura..." required></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small text-muted">Peças e Insumos Substituídos</label>
+                            <input type="text" name="pecas" class="form-control bg-dark text-light border-secondary" placeholder="Ex: Óleo 5W30, Filtro de Óleo, Pastilhas de Freio">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Militar Responsável / Fiscal do Contrato</label>
+                            <input type="text" name="responsavel" class="form-control bg-dark text-light border-secondary" value="{{ assinatura_padrao.nome }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Observações Adicionais</label>
+                            <input type="text" name="observacoes" class="form-control bg-dark text-light border-secondary" placeholder="Garantia, notas, etc.">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-tactical bg-tactical-navy">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold">Salvar Manutenção</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 5. MODAL: NOVO EQUIPAMENTO -->
+<div class="modal fade" id="modalNovoEquipamento" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-tactical-card text-light border-tactical">
+            <div class="modal-header border-tactical bg-tactical-navy">
+                <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-boxes-stacked text-warning"></i>
+                    Cadastrar Equipamento da Frota
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('salvar_equipamento_route') }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Código de Patrimônio *</label>
+                            <input type="text" name="patrimonio" class="form-control bg-dark text-light border-secondary" placeholder="Ex: BM-EQ-010" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Tipo de Equipamento</label>
+                            <select name="tipo" class="form-select bg-dark text-light border-secondary">
+                                <option value="Gerador">Gerador</option>
+                                <option value="Motosserra">Motosserra</option>
+                                <option value="Desencarcerador">Desencarcerador</option>
+                                <option value="Rádio Transceptor">Rádio Transceptor</option>
+                                <option value="Drone">Drone</option>
+                                <option value="Outro">Outro</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small text-muted">Nome do Equipamento *</label>
+                            <input type="text" name="nome" class="form-control bg-dark text-light border-secondary" placeholder="Ex: Gerador Toyama 3.5kVA" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Modelo</label>
+                            <input type="text" name="modelo" class="form-control bg-dark text-light border-secondary" placeholder="Ex: TG3800CX">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Número de Série</label>
+                            <input type="text" name="serie" class="form-control bg-dark text-light border-secondary" placeholder="Ex: SN98421">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Viatura Vinculada (Prefixo)</label>
+                            <input type="text" name="viatura_prefixo" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 14895 (ou vazio p/ Base)">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Status Operacional</label>
+                            <select name="status" class="form-select bg-dark text-light border-secondary">
+                                <option value="Operacional">Operacional</option>
+                                <option value="Em Manutenção">Em Manutenção</option>
+                                <option value="Inoperante">Inoperante</option>
+                                <option value="Baixado">Baixado</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small text-muted">Observações</label>
+                            <input type="text" name="observacoes" class="form-control bg-dark text-light border-secondary" placeholder="Detalhes, local de armazenamento, etc.">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-tactical bg-tactical-navy">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold">Cadastrar Equipamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 6. MODAL: CADASTRAR NOVA VIATURA NA FROTA -->
+<div class="modal fade" id="modalAdicionarVtrManutencao" tabindex="-1" aria-labelledby="modalAdicionarVtrManutencaoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-tactical-card text-light border border-secondary border-opacity-25 shadow">
+            <div class="modal-header border-secondary border-opacity-25 bg-tactical-navy">
+                <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2" id="modalAdicionarVtrManutencaoLabel">
+                    <i class="fa-solid fa-car-side text-warning"></i>
+                    Cadastrar Nova Viatura na Frota Oficial
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form action="{{ url_for('adicionar_viatura') }}" method="POST">
+                <div class="modal-body p-4">
+                    <p class="text-secondary small mb-3">
+                        Adiciona a viatura ao banco oficial do 46º BPM e cria automaticamente sua pasta digital no disco.
+                    </p>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Prefixo (BM) *</label>
+                            <input type="text" name="prefixo" class="form-control form-control-sm bg-dark text-light border-secondary fw-bold" placeholder="Ex: 14895" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Placa *</label>
+                            <input type="text" name="placa" class="form-control form-control-sm bg-dark text-light border-secondary text-uppercase" placeholder="Ex: TQU0F72" required>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Marca</label>
+                            <input type="text" name="marca" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Ex: Toyota" value="Toyota">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Modelo</label>
+                            <input type="text" name="modelo" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Ex: Hilux 4x4" value="Hilux">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Cidade de Carga</label>
+                            <select name="cidade_carga" class="form-select form-select-sm bg-dark text-light border-secondary">
+                                <option value="Bagé" selected>Bagé</option>
+                                <option value="Dom Pedrito">Dom Pedrito</option>
+                                <option value="Hulha Negra">Hulha Negra</option>
+                                <option value="Lavras do Sul">Lavras do Sul</option>
+                                <option value="Aceguá">Aceguá</option>
+                                <option value="Pinheiro Machado">Pinheiro Machado</option>
+                                <option value="Candiota">Candiota</option>
+                                <option value="Pedras Altas">Pedras Altas</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Tipo de Combustível</label>
+                            <select name="tipo_combustivel" class="form-select form-select-sm bg-dark text-light border-secondary">
+                                <option value="Diesel S10" selected>Diesel S10</option>
+                                <option value="Gasolina Comum">Gasolina Comum</option>
+                                <option value="Etanol">Etanol</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25 bg-tactical-navy">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold px-4 text-dark">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Cadastrar e Criar Pasta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // --- 1. Lógica do Modal de Emissão do Atestado de Recebimento ---
+    const vtrSelect = document.getElementById('atestado_vtr_select');
+    const vtrMarca = document.getElementById('atestado_vtr_marca');
+    const vtrModelo = document.getElementById('atestado_vtr_modelo');
+    const vtrPlaca = document.getElementById('atestado_vtr_placa');
+    const vtrCidade = document.getElementById('atestado_vtr_cidade');
+
+    const radioTipos = document.querySelectorAll('.radio-tipo-fiscal');
+    const blocoDanfe = document.getElementById('bloco_campo_danfe');
+    const blocoNfse = document.getElementById('bloco_campo_nfse');
+
+    const numDanfe = document.getElementById('atestado_num_danfe');
+    const valDanfe = document.getElementById('atestado_val_danfe');
+    const numNfse = document.getElementById('atestado_num_nfse');
+    const valNfse = document.getElementById('atestado_val_nfse');
+    const empNome = document.getElementById('atestado_empresa_nome');
+    const empCnpj = document.getElementById('atestado_empresa_cnpj');
+    const respNome = document.getElementById('atestado_resp_nome');
+    const respGrad = document.getElementById('atestado_resp_grad');
+    const respIdFunc = document.getElementById('atestado_resp_idfunc');
+    const respCargo = document.getElementById('atestado_resp_cargo');
+    const prevNome = document.getElementById('preview_atestador_nome');
+    const prevCargo = document.getElementById('preview_atestador_cargo');
+    const prevIdFunc = document.getElementById('preview_atestador_idfunc');
+
+    const textareaTexto = document.getElementById('textareaTextoAtestadoRecebimento');
+    const btnAtualizar = document.getElementById('btnAtualizarTextoRecebimento');
+
+    // --- Extração automática de empresa/CNPJ/Nº/Valor a partir do arquivo de nota fiscal ---
+    function extrairDadosDeNota(inputEl, statusEl, campoNumero, campoValor) {
+        if (!inputEl) return;
+        inputEl.addEventListener('change', function () {
+            const file = this.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('arquivo', file);
+
+            if (statusEl) {
+                statusEl.className = 'text-warning mt-1';
+                statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Extraindo dados da nota...';
+                statusEl.classList.remove('d-none');
+            }
+
+            fetch('/api/manutencao/extrair-dados-nota', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.erro) {
+                    if (statusEl) {
+                        statusEl.className = 'text-danger mt-1';
+                        statusEl.innerHTML = `<i class="fa-solid fa-circle-exclamation me-1"></i>${data.erro}`;
+                        statusEl.classList.remove('d-none');
+                    }
+                    return;
+                }
+                if (data.aviso) {
+                    if (statusEl) {
+                        statusEl.className = 'text-secondary mt-1';
+                        statusEl.innerHTML = `<i class="fa-solid fa-circle-info me-1"></i>${data.aviso}`;
+                        statusEl.classList.remove('d-none');
+                    }
+                    return;
+                }
+
+                const camposPreenchidos = [];
+
+                // Empresa e CNPJ (compartilhados entre DANFE e NFS-e)
+                if (data.empresa_nome && empNome) {
+                    empNome.value = data.empresa_nome;
+                    camposPreenchidos.push('Empresa');
+                }
+                if (data.empresa_cnpj && empCnpj) {
+                    empCnpj.value = data.empresa_cnpj;
+                    camposPreenchidos.push('CNPJ');
+                }
+
+                // Número da OS Ticket Log (8 dígitos)
+                const campoNumOs = document.getElementById('atestado_num_os');
+                if (data.numero_os && campoNumOs) {
+                    campoNumOs.value = data.numero_os;
+                    camposPreenchidos.push('Nº OS Ticket Log (' + data.numero_os + ')');
+                }
+
+                // Número da nota (específico do tipo de documento)
+                if (data.numero_nota && campoNumero) {
+                    campoNumero.value = data.numero_nota;
+                    camposPreenchidos.push('Nº');
+                }
+
+                // Valor (específico do tipo de documento)
+                if (data.valor_total && campoValor) {
+                    campoValor.value = data.valor_total;
+                    camposPreenchidos.push('Valor');
+                }
+
+                if (statusEl) {
+                    if (camposPreenchidos.length > 0) {
+                        statusEl.className = 'text-success mt-1';
+                        statusEl.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i>Preenchido automaticamente: ${camposPreenchidos.join(', ')}`;
+                        statusEl.classList.remove('d-none');
+                    } else {
+                        statusEl.className = 'text-warning mt-1';
+                        statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i>Não foi possível extrair dados. Preencha manualmente.';
+                        statusEl.classList.remove('d-none');
+                    }
+                }
+
+                atualizarTextoPreview();
+            })
+            .catch(() => {
+                if (statusEl) {
+                    statusEl.className = 'text-danger mt-1';
+                    statusEl.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i>Erro na comunicação. Preencha manualmente.';
+                    statusEl.classList.remove('d-none');
+                }
+            });
+        });
+    }
+
+    // DANFE → preenche Nº DANFE e Valor DANFE
+    extrairDadosDeNota(
+        document.getElementById('arquivo_danfe_input'),
+        document.getElementById('danfe_extracao_status'),
+        document.getElementById('atestado_num_danfe'),
+        document.getElementById('atestado_val_danfe')
+    );
+    // NFS-e → preenche Nº NFS-e e Valor NFS-e
+    extrairDadosDeNota(
+        document.getElementById('arquivo_nfse_input'),
+        document.getElementById('nfse_extracao_status'),
+        document.getElementById('atestado_num_nfse'),
+        document.getElementById('atestado_val_nfse')
+    );
+    // OS Ticket Log → preenche Nº OS, Empresa e CNPJ
+    extrairDadosDeNota(
+        document.getElementById('arquivo_os_input'),
+        document.getElementById('os_extracao_status'),
+        document.getElementById('atestado_num_os'),
+        null
+    );
+
+
+    function atualizarPreviewAssinatura() {
+        if (prevNome && respNome) prevNome.innerText = respNome.value.trim().toUpperCase() || 'JULIANO INOCENTE VELEDA';
+        if (prevCargo && respGrad && respCargo) {
+            prevCargo.innerText = `${respGrad.value.trim()} – ${respCargo.value.trim()}`;
+        }
+        if (prevIdFunc && respIdFunc) prevIdFunc.innerText = respIdFunc.value.trim() || '3155358';
+    }
+
+    [respNome, respGrad, respIdFunc, respCargo].forEach(el => {
+        if (el) {
+            el.addEventListener('input', function() {
+                atualizarPreviewAssinatura();
+                atualizarTextoPreview();
+            });
+            el.addEventListener('change', function() {
+                atualizarPreviewAssinatura();
+                atualizarTextoPreview();
+            });
+        }
+    });
+
+    // Quando troca a viatura no select
+    if (vtrSelect) {
+        vtrSelect.addEventListener('change', function () {
+            const opt = vtrSelect.options[vtrSelect.selectedIndex];
+            if (opt && opt.value) {
+                if (opt.dataset.marca) vtrMarca.value = opt.dataset.marca;
+                if (opt.dataset.modelo) vtrModelo.value = opt.dataset.modelo;
+                if (opt.dataset.placa) vtrPlaca.value = opt.dataset.placa;
+                if (opt.dataset.cidade) vtrCidade.value = opt.dataset.cidade;
+            }
+            atualizarTextoPreview();
+        });
+    }
+
+    // Alternância de tipos fiscais (NFS-e, DANFE, Ambos)
+    function ajustarVisibilidadeBlocos() {
+        let tipo = 'nfse';
+        radioTipos.forEach(r => { if (r.checked) tipo = r.value; });
+
+        if (tipo === 'nfse') {
+            blocoNfse.style.display = 'block';
+            blocoDanfe.style.display = 'none';
+        } else if (tipo === 'danfe') {
+            blocoNfse.style.display = 'none';
+            blocoDanfe.style.display = 'block';
+        } else {
+            blocoNfse.style.display = 'block';
+            blocoDanfe.style.display = 'block';
+        }
+        atualizarTextoPreview();
+    }
+
+    radioTipos.forEach(r => r.addEventListener('change', ajustarVisibilidadeBlocos));
+
+    // Atualização dinâmica do texto prévio do atestado
+    function atualizarTextoPreview() {
+        let tipo = 'nfse';
+        radioTipos.forEach(r => { if (r.checked) tipo = r.value; });
+
+        const dados = {
+            tipo_documento_fiscal: tipo,
+            viatura_prefixo: vtrSelect ? vtrSelect.value : '',
+            viatura_marca: vtrMarca ? vtrMarca.value : '',
+            viatura_modelo: vtrModelo ? vtrModelo.value : '',
+            viatura_placa: vtrPlaca ? vtrPlaca.value : '',
+            cidade_carga: vtrCidade ? vtrCidade.value : 'Bagé',
+            numero_danfe: numDanfe ? numDanfe.value : '',
+            valor_danfe: valDanfe ? parseFloat(valDanfe.value.replace('.', '').replace(',', '.')) || 0.0 : 0.0,
+            numero_nfse: numNfse ? numNfse.value : '',
+            valor_nfse: valNfse ? parseFloat(valNfse.value.replace('.', '').replace(',', '.')) || 0.0 : 0.0,
+            empresa_nome: empNome ? empNome.value : '',
+            empresa_cnpj: empCnpj ? empCnpj.value : '',
+            responsavel_nome: respNome ? respNome.value : '',
+            responsavel_grad: respGrad ? respGrad.value : '',
+            responsavel_id_func: respIdFunc ? respIdFunc.value : '',
+            responsavel_cargo: respCargo ? respCargo.value : ''
+        };
+
+        fetch('/api/manutencao/atestado/texto-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.texto) {
+                textareaTexto.value = data.texto;
+            }
+        })
+        .catch(err => console.error('Erro ao atualizar preview:', err));
+    }
+
+    if (btnAtualizar) {
+        btnAtualizar.addEventListener('click', atualizarTextoPreview);
+    }
+
+    [numDanfe, valDanfe, numNfse, valNfse, empNome, empCnpj, vtrMarca, vtrModelo, vtrPlaca, vtrCidade].forEach(el => {
+        if (el) el.addEventListener('input', atualizarTextoPreview);
+    });
+
+    // --- 2. Botão "Emitir Atestado" direto no card da viatura ---
+    document.querySelectorAll('.btn-emitir-atestado-vtr').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const pref = this.dataset.prefixo;
+            if (vtrSelect) {
+                vtrSelect.value = pref;
+                if (this.dataset.marca) vtrMarca.value = this.dataset.marca;
+                if (this.dataset.modelo) vtrModelo.value = this.dataset.modelo;
+                if (this.dataset.placa) vtrPlaca.value = this.dataset.placa;
+                if (this.dataset.cidade) vtrCidade.value = this.dataset.cidade;
+            }
+            ajustarVisibilidadeBlocos();
+            const modalEl = document.getElementById('modalEmitirAtestadoRecebimento');
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        });
+    });
+
+    // --- 3. Botão "Abrir Pasta" da Viatura com Visualização por Subpastas de OS ---
+    const modalVerPasta = document.getElementById('modalVerPastaViatura');
+    const modalPastaTitulo = document.getElementById('modalPastaTitulo');
+    const modalPastaSubtitulo = document.getElementById('modalPastaSubtitulo');
+    const modalPastaCaminho = document.getElementById('modalPastaCaminho');
+    const modalPastaLista = document.getElementById('modalPastaListaArquivos');
+    const btnAnexarDireto = document.getElementById('btnAnexarDiretoNaPasta');
+    const selectAnexoViatura = document.getElementById('selectAnexoViatura');
+
+    document.querySelectorAll('.btn-abrir-pasta').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const pref = this.dataset.prefixo;
+            abrirPastaViatura(pref, this.dataset.modelo, this.dataset.placa);
+        });
+    });
+
+    function abrirPastaViatura(prefixo, modelo, placa) {
+        modalPastaTitulo.innerHTML = `Pasta da Viatura BM <strong>${prefixo}</strong>`;
+        modalPastaSubtitulo.innerText = `BM ${prefixo} - ${modelo || ''} (${placa || ''})`;
+        modalPastaCaminho.innerText = `uploads/manutencao/viaturas/${prefixo}/`;
+        modalPastaLista.innerHTML = `<div class="text-center py-4 text-muted"><i class="fa-solid fa-spinner fa-spin fs-4 mb-2"></i> Carregando arquivos anexados...</div>`;
+
+        if (btnAnexarDireto) {
+            btnAnexarDireto.onclick = function () {
+                if (selectAnexoViatura) selectAnexoViatura.value = prefixo;
+                bootstrap.Modal.getInstance(modalVerPasta).hide();
+                const mAnexo = new bootstrap.Modal(document.getElementById('modalAnexarArquivoViatura'));
+                mAnexo.show();
+            };
+        }
+
+        const modalInstance = new bootstrap.Modal(modalVerPasta);
+        modalInstance.show();
+
+        fetch(`/api/manutencao/viatura-arquivos/${prefixo}`)
+            .then(r => r.json())
+            .then(data => {
+                const arqs = data.arquivos || [];
+                if (arqs.length === 0) {
+                    modalPastaLista.innerHTML = `
+                        <div class="text-center py-4 text-muted bg-dark rounded border border-secondary border-opacity-25">
+                            <i class="fa-solid fa-folder-open fs-2 d-block mb-2 text-secondary"></i>
+                            Nenhum documento anexado ainda nesta pasta.<br/>
+                            <small class="text-secondary">Você pode anexar ordens de serviço, DANFE, NFS-e ou emitir um Atestado de Recebimento.</small>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Agrupa arquivos por subpastas de Ordens de Serviço
+                const grupos = {};
+                arqs.forEach(a => {
+                    const grupoNome = a.pasta_os || 'Arquivos Avulsos da Viatura (Raiz)';
+                    if (!grupos[grupoNome]) grupos[grupoNome] = [];
+                    grupos[grupoNome].push(a);
+                });
+
+                let html = '';
+                for (const [nomeGrupo, listaGrupo] of Object.entries(grupos)) {
+                    const isOs = nomeGrupo !== 'Arquivos Avulsos da Viatura (Raiz)';
+                    html += `
+                        <div class="mb-3 rounded bg-black bg-opacity-25 border border-secondary border-opacity-25 p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-secondary border-opacity-25">
+                                ${isOs ? `
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="text-secondary small fw-semibold"><i class="fa-solid fa-folder-tree text-warning me-1"></i>Subpasta:</span>
+                                        <span class="badge bg-warning font-monospace px-2 py-1 shadow-sm" style="color: #000000 !important; font-size: 0.92rem; font-weight: 800; letter-spacing: 0.5px;">
+                                            <i class="fa-solid fa-folder-closed me-1" style="color: #000000 !important;"></i>${nomeGrupo}
+                                        </span>
+                                    </div>
+                                ` : `
+                                    <span class="fw-bold small text-info">
+                                        <i class="fa-solid fa-folder me-1"></i> ${nomeGrupo}
+                                    </span>
+                                `}
+                                <span class="badge bg-secondary bg-opacity-50 text-light small" style="font-size: 0.72rem;">
+                                    ${listaGrupo.length} arquivo(s)
+                                </span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover table-sm align-middle mb-0" style="font-size: 0.85rem;">
+                                    <thead class="bg-tactical-navy text-muted text-uppercase" style="font-size: 0.72rem;">
+                                        <tr>
+                                            <th>Tipo</th>
+                                            <th>Nome do Arquivo / Descrição</th>
+                                            <th>Tamanho</th>
+                                            <th>Data</th>
+                                            <th class="text-end">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                    `;
+
+                    listaGrupo.forEach(a => {
+                        let badgeClass = 'bg-secondary';
+                        let icon = 'fa-file';
+                        if (a.tipo_documento === 'OS') { badgeClass = 'bg-primary'; icon = 'fa-file-lines'; }
+                        else if (a.tipo_documento === 'DANFE') { badgeClass = 'bg-warning text-dark'; icon = 'fa-box-open'; }
+                        else if (a.tipo_documento === 'NFSE') { badgeClass = 'bg-info text-dark'; icon = 'fa-wrench'; }
+                        else if (a.tipo_documento === 'ATESTADO') { badgeClass = 'bg-success'; icon = 'fa-file-pdf'; }
+
+                        const tamKb = (a.tamanho_bytes / 1024).toFixed(1);
+
+                        html += `
+                            <tr>
+                                <td><span class="badge ${badgeClass}"><i class="fa-solid ${icon} me-1"></i>${a.tipo_documento}</span></td>
+                                <td>
+                                    <div class="fw-semibold text-white small">${a.nome_original}</div>
+                                    ${a.descricao ? `<small class="text-muted">${a.descricao}</small>` : ''}
+                                </td>
+                                <td class="small text-secondary">${tamKb} KB</td>
+                                <td class="small text-secondary">${a.data_upload ? a.data_upload.substring(0, 16) : ''}</td>
+                                <td class="text-end text-nowrap">
+                                    <a href="/manutencao/arquivo/download/${a.id}" target="_blank" class="btn btn-outline-info btn-sm p-1 px-2" title="Baixar / Visualizar">
+                                        <i class="fa-solid fa-download"></i>
+                                    </a>
+                                    <form action="/manutencao/arquivo/excluir/${a.id}" method="POST" class="d-inline" onsubmit="return confirm('Deseja excluir este arquivo da pasta?');">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm p-1 px-2" title="Excluir">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    html += `</tbody></table></div></div>`;
+                }
+                modalPastaLista.innerHTML = html;
+            })
+            .catch(err => {
+                modalPastaLista.innerHTML = `<div class="alert alert-danger">Erro ao carregar arquivos da pasta.</div>`;
+            });
+    }
+
+    // --- 4. Botão "Anexar Rápido" no card ---
+    document.querySelectorAll('.btn-anexar-rapido').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const pref = this.dataset.prefixo;
+            if (selectAnexoViatura) selectAnexoViatura.value = pref;
+            const mAnexo = new bootstrap.Modal(document.getElementById('modalAnexarArquivoViatura'));
+            mAnexo.show();
+        });
+    });
+});
+</script>
+{% endblock %}

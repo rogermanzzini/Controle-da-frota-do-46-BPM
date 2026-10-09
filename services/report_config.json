@@ -1,0 +1,17 @@
+{
+  "nome": "RÓGER SANTANA MANZZINI",
+  "graduacao": "SD PM",
+  "cargo": "Auxiliar do P4/46º BPM",
+  "signature": "RÓGER SANTANA MANZZINI – SD PM",
+  "atestado": {
+    "modo": "impedimento",
+    "titular_nome": "KARLA DE MOURA INCERTI",
+    "titular_cargo": "Ten Cel PM – Cmt 46º BPM",
+    "respondendo_nome": "PATRIQUE ROLIM MARQUES",
+    "respondendo_cargo": "Maj PM – Rsp. p/ Cmt 46º BPM",
+    "subcomandante_nome": "PATRIQUE ROLIM MARQUES",
+    "subcomandante_cargo": "Maj PM – SCmt 46º BPM",
+    "gestor_nome": "RÓGER SANTANA MANZZINI",
+    "gestor_cargo": "Sd PM – Gestor de frota 46º BPM"
+  }
+}

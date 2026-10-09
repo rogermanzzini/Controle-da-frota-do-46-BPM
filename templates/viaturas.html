@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block title %}Frota Alvo - 46º BPM (Bagé/RS){% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+    <div class="col-md-7">
+        <h2 class="fw-bold mb-1 d-flex align-items-center gap-2">
+            <i class="fa-solid fa-car-side text-warning"></i> Frota de Viaturas do 46º BPM (Bagé)
+        </h2>
+        <p class="text-secondary mb-0">
+            Relação de viaturas cadastradas no SQLite que são monitoradas nos relatórios de abastecimento.
+        </p>
+    </div>
+    <div class="col-md-5 text-md-end mt-3 mt-md-0 d-flex gap-2 justify-content-md-end">
+        <button type="button" class="btn btn-primary px-3 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalAdicionarVtr">
+            <i class="fa-solid fa-plus me-1"></i> Adicionar Viatura
+        </button>
+        <button type="button" class="btn btn-tactical-outline btn-sm px-3" data-bs-toggle="modal" data-bs-target="#modalUploadPlacas">
+            <i class="fa-solid fa-file-excel text-success me-1"></i> Upload Planilha de Placas
+        </button>
+        <form action="{{ url_for('remover_veiculos') }}" method="POST" style="display:inline;">
+            <button type="submit" class="btn btn-danger btn-sm ms-2">Remover todas as viaturas</button>
+        </form>
+    </div>
+</div>
+
+<div class="card card-tactical">
+    <div class="card-header bg-transparent border-tactical py-3 d-flex justify-content-between align-items-center">
+        <span class="fw-semibold text-white">
+            Viaturas Monitoradas ({{ viaturas|length }})
+        </span>
+        <div class="col-md-4">
+            <input type="text" id="filtroFrota" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Buscar por prefixo, placa ou modelo..." onkeyup="filtrarFrota(this.value)">
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if not viaturas %}
+        <div class="text-center py-5">
+            <i class="fa-solid fa-car text-secondary fa-3x mb-3"></i>
+            <h5 class="text-white">Nenhuma viatura cadastrada ainda</h5>
+            <p class="text-secondary col-md-6 mx-auto mb-4">
+                Você pode importar uma planilha com a frota do 46º BPM ou adicionar veículos individualmente pelo botão acima.
+            </p>
+            <div class="d-flex gap-2 justify-content-center">
+                <a href="{{ url_for('upload_page') }}" class="btn btn-primary btn-sm">
+                    <i class="fa-solid fa-cloud-arrow-up me-1"></i> Ir para Upload
+                </a>
+                <form action="{{ url_for('carregar_dados_demonstracao') }}" method="POST">
+                    <button type="submit" class="btn btn-outline-info btn-sm">
+                        <i class="fa-solid fa-wand-magic-sparkles me-1"></i> Carregar Frota Exemplo
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0 align-middle tactical-table" id="tabelaFrota">
+                <thead>
+                    <tr>
+                        <th class="text-center">Selecionar</th>
+                        <th class="ps-3">Prefixo</th>
+                        <th>Placa</th>
+                        <th>Modelo / Descrição</th>
+                        <th>Fração / Companhia</th>
+                        <th>Combustível Padrão</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center pe-3">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in viaturas %}
+                    <tr>
+                        <td class="ps-3 fw-bold text-info fs-6">{{ v.prefixo or '-' }}</td>
+                        <td><span class="badge bg-secondary font-monospace fs-7">{{ v.placa }}</span></td>
+                        <td>{{ v.modelo or 'Não informado' }}</td>
+                        <td><small class="text-secondary">{{ v.fracao or '46º BPM' }}</small></td>
+                        <td><span class="badge bg-dark-subtle text-light border border-secondary">{{ v.tipo_combustivel }}</span></td>
+                        <td class="text-center">
+                            <span class="badge bg-success-subtle text-success">
+                                <i class="fa-solid fa-circle-check me-1"></i> Monitorada
+                            </span>
+                        </td>
+                        <td class="text-center pe-3">
+                            <a href="{{ url_for('viatura_detalhe', identificador=v.placa) }}" class="btn btn-sm btn-outline-info py-0 px-2">
+                                <i class="fa-solid fa-chart-line me-1"></i> Ficha
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Adicionar Viatura -->
+<div class="modal fade" id="modalAdicionarVtr" tabindex="-1" aria-labelledby="modalAdicionarVtrLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-tactical-navy text-light border-tactical">
+            <div class="modal-header border-tactical">
+                <h5 class="modal-title fw-bold text-white" id="modalAdicionarVtrLabel">
+                    <i class="fa-solid fa-car text-primary me-2"></i> Cadastrar Viatura do 46º BPM
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('adicionar_viatura') }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white">Placa do Veículo <span class="text-danger">*</span></label>
+                        <input type="text" name="placa" class="form-control bg-dark text-light border-secondary text-uppercase" placeholder="Ex: IXO8A12 ou IXO-8012" required>
+                        <small class="text-muted">Padrão antigo ou Mercosul.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white">Prefixo da Viatura</label>
+                        <input type="text" name="prefixo" class="form-control bg-dark text-light border-secondary text-uppercase" placeholder="Ex: BM-12450">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white">Modelo / Descrição</label>
+                        <input type="text" name="modelo" class="form-control bg-dark text-light border-secondary" placeholder="Ex: Renault Duster 1.6 ou Toyota Hilux">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white">Fração / Unidade</label>
+                        <input type="text" name="fracao" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 1ª Cia - Bagé, Força Tática, Patrulha Rural">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white">Tipo de Combustível Principal</label>
+                        <select name="tipo_combustivel" class="form-select bg-dark text-light border-secondary">
+                            <option value="Gasolina Comum">Gasolina Comum</option>
+                            <option value="Gasolina Aditivada">Gasolina Aditivada</option>
+                            <option value="Diesel S10">Diesel S10</option>
+                            <option value="Diesel Comum">Diesel Comum</option>
+                            <option value="Etanol">Etanol</option>
+                            <option value="Óleos / Lubrificantes">Óleos / Lubrificantes</option>
+                            <option value="Filtros">Filtros</option>
+                            <option value="Outros">Outros</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-tactical">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-bold px-3">Salvar Viatura</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Upload de Planilha de Placas -->
+<div class="modal fade" id="modalUploadPlacas" tabindex="-1" aria-labelledby="modalUploadPlacasLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-tactical-navy text-light border-tactical">
+            <div class="modal-header border-tactical">
+                <h5 class="modal-title fw-bold text-white" id="modalUploadPlacasLabel">
+                    <i class="fa-solid fa-file-excel text-success me-2"></i> Importar Placas das Viaturas (46º BPM)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('upload_placas') }}" method="POST" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <p class="text-secondary small mb-3">
+                        Você pode enviar uma planilha Excel contendo a coluna de placas ou digitar/colar a lista de placas abaixo:
+                    </p>
+
+                    <!-- Opção 1: Arquivo Excel -->
+                    <div class="mb-4">
+                        <label class="form-label text-white fw-bold">
+                            <i class="fa-solid fa-cloud-arrow-up text-primary me-1"></i> Opção 1: Enviar Planilha Excel (.xlsx / .xls)
+                        </label>
+                        <div class="upload-dropzone p-3 rounded-3 text-center border-dashed" id="modal_dropzone_placas" onclick="document.getElementById('modal_arquivo_placas').click()">
+                            <div class="dropzone-icon-box mb-2">
+                                <i class="fa-solid fa-file-excel text-success fs-3"></i>
+                            </div>
+                            <h6 class="text-white mb-1" id="modal_placas_title">Clique ou arraste a planilha com as placas</h6>
+                            <small class="text-muted d-block" id="modal_placas_desc">Pode conter apenas a coluna de placas ou os dados completos</small>
+                            <input type="file" name="arquivo_placas" id="modal_arquivo_placas" class="d-none" accept=".xlsx, .xls" onchange="handleFileSelect(this, 'modal_placas_title', 'modal_placas_desc', 'modal_dropzone_placas')">
+                        </div>
+                    </div>
+
+                    <!-- Divisor Ou -->
+                    <div class="text-center my-3 position-relative">
+                        <hr class="border-tactical">
+                        <span class="position-absolute top-50 start-50 translate-middle bg-tactical-navy px-3 text-secondary fw-bold small">OU</span>
+                    </div>
+
+                    <!-- Opção 2: Colar Lista de Placas -->
+                    <div class="mb-3">
+                        <label class="form-label text-white fw-bold">
+                            <i class="fa-solid fa-keyboard text-warning me-1"></i> Opção 2: Digitar ou Colar Lista de Placas
+                        </label>
+                        <textarea name="texto_placas" class="form-control bg-dark text-light border-secondary font-monospace" rows="4" placeholder="Cole as placas aqui (separadas por linha ou vírgula):&#10;IXO8A12&#10;JBG9A87&#10;JCY4B11&#10;JZZ7C34"></textarea>
+                        <small class="text-muted">Aceita padrão antigo (ex: IXO-8012) e padrão Mercosul (ex: IXO8A12).</small>
+                    </div>
+                </div>
+                <div class="modal-footer border-tactical">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success btn-sm fw-bold px-4">
+                        <i class="fa-solid fa-check me-1"></i> Cadastrar Placas no SQLite
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function filtrarFrota(query) {
+        query = query.toLowerCase();
+        const rows = document.querySelectorAll('#tabelaFrota tbody tr');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(query) ? '' : 'none';
+        });
+    }
+</script>
+{% endblock %}

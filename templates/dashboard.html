@@ -1,0 +1,552 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - 46º BPM (Bagé/RS){% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+    <div class="col-md-7">
+        <h2 class="fw-bold mb-1 d-flex align-items-center gap-2">
+            <i class="fa-solid fa-gauge-high text-info"></i> Painel Geral de Consumo da Frota
+        </h2>
+        <p class="text-secondary mb-0">
+            Acompanhamento de abastecimentos e eficiência energética das viaturas do 46º BPM (Bagé).
+        </p>
+    </div>
+    <div class="col-md-5 text-md-end mt-3 mt-md-0 d-flex gap-2 justify-content-md-end">
+        <a href="{{ url_for('upload_page') }}" class="btn btn-primary px-3 fw-semibold">
+            <i class="fa-solid fa-cloud-arrow-up me-1"></i> Nova Importação
+        </a>
+        <a href="{{ url_for('exportar_excel') }}" class="btn btn-success px-3 fw-semibold">
+            <i class="fa-solid fa-file-excel me-1"></i> Baixar Relatório
+        </a>
+        <button type="button" class="btn btn-warning px-3 fw-bold text-dark shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestado">
+            <i class="fa-solid fa-file-signature me-1"></i> Atestado de Combustíveis (PDF)
+        </button>
+</div>
+
+<!-- Painel Destacado: Inserir Planilha Excel -->
+<div class="card card-tactical mb-4 border border-2 border-primary shadow">
+    <div class="card-header bg-tactical-navy py-3 d-flex justify-content-between align-items-center">
+        <span class="fw-bold text-white fs-5 d-flex align-items-center gap-2">
+            <i class="fa-solid fa-file-excel text-success fs-4"></i> Inserir Arquivo Excel de Abastecimentos e Viaturas
+        </span>
+        <span class="badge bg-primary px-3 py-1">Processador Pandas + openpyxl</span>
+    </div>
+    <div class="card-body p-4">
+        <form action="{{ url_for('processar_arquivos') }}" method="POST" enctype="multipart/form-data" id="dashUploadForm">
+            <div class="row g-3">
+                <!-- Campo 1: Planilha Geral do RS -->
+                <div class="col-lg-6">
+                    <label class="form-label text-white fw-semibold d-flex justify-content-between align-items-center">
+                        <span><span class="badge bg-primary me-1">1</span> Planilha Geral de Abastecimentos (RS) <span class="text-danger">*</span></span>
+                        <small class="text-secondary">Extensão .xlsx ou .xls</small>
+                    </label>
+                    <div class="upload-dropzone p-3 rounded-3 text-center" id="dropzone_rs_dash" onclick="document.getElementById('dash_arquivo_rs').click()">
+                        <div class="dropzone-icon-box mb-2">
+                            <i class="fa-solid fa-file-excel text-info fs-3"></i>
+                        </div>
+                        <h6 class="text-white mb-1" id="dash_rs_title">Clique ou arraste o arquivo do RS aqui</h6>
+                        <small class="text-muted d-block" id="dash_rs_desc">Planilha contendo os abastecimentos estaduais</small>
+                        <input type="file" name="arquivo_rs" id="dash_arquivo_rs" class="d-none" accept=".xlsx, .xls" required onchange="handleFileSelect(this, 'dash_rs_title', 'dash_rs_desc', 'dropzone_rs_dash')">
+                    </div>
+                </div>
+
+                <!-- Campo 2: Viaturas / Placas Alvo -->
+                <div class="col-lg-6">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label text-white fw-semibold mb-0">
+                            <span class="badge bg-warning text-dark me-1">2</span> Placas / Viaturas a Extrair <span class="text-danger">*</span>
+                        </label>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-warning active py-0 px-2 fs-7" id="btnModoPlanilhaDash" onclick="alternarModoPlacasDash('planilha')">
+                                <i class="fa-solid fa-file-excel me-1"></i> Upload Planilha
+                            </button>
+                            <button type="button" class="btn btn-outline-warning py-0 px-2 fs-7" id="btnModoTextoDash" onclick="alternarModoPlacasDash('texto')">
+                                <i class="fa-solid fa-keyboard me-1"></i> Digitar Placas
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Modo 1: Upload Planilha de Placas -->
+                    <div id="boxPlanilhaAlvoDash">
+                        <div class="upload-dropzone p-3 rounded-3 text-center" id="dropzone_alvo_dash" onclick="document.getElementById('dash_arquivo_alvo').click()">
+                            <div class="dropzone-icon-box mb-2">
+                                <i class="fa-solid fa-car-side text-warning fs-3"></i>
+                            </div>
+                            <h6 class="text-white mb-1" id="dash_alvo_title">
+                                {% if viaturas_cadastradas %}
+                                    Frota salva ({{ viaturas_cadastradas|length }} vtrs) &bull; Ou clique para carregar nova planilha
+                                {% else %}
+                                    Clique ou arraste a planilha com as placas
+                                {% endif %}
+                            </h6>
+                            <small class="text-muted d-block" id="dash_alvo_desc">
+                                Planilha Excel (.xlsx/.xls) contendo a coluna com as placas das viaturas
+                            </small>
+                            <input type="file" name="arquivo_alvo" id="dash_arquivo_alvo" class="d-none" accept=".xlsx, .xls" onchange="handleFileSelect(this, 'dash_alvo_title', 'dash_alvo_desc', 'dropzone_alvo_dash')">
+                        </div>
+                    </div>
+
+                    <!-- Modo 2: Digitar / Colar Placas -->
+                    <div id="boxTextoAlvoDash" style="display: none;">
+                        <textarea name="texto_placas" id="dash_texto_placas" class="form-control bg-dark text-light border-secondary font-monospace" rows="3" placeholder="Digite ou cole as placas separadas por vírgula ou linha:&#10;Ex: IXO8A12, JBG9A87, JCY4B11, IXO8A15..."></textarea>
+                        <small class="text-muted d-block mt-1">Informe as placas que deseja filtrar nos abastecimentos.</small>
+                    </div>
+
+                    {% if viaturas_cadastradas %}
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="usar_viaturas_cadastradas" id="dash_usar_salvas" value="1" checked>
+                        <label class="form-check-label text-secondary small" for="dash_usar_salvas">
+                            Reaproveitar viaturas já gravadas no SQLite caso nenhum novo arquivo/placa seja enviado
+                        </label>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Rodapé do Card com Ação -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-3 border-top border-tactical gap-2">
+                <div class="text-secondary small">
+                    <i class="fa-solid fa-calculator text-info me-1"></i>
+                    O Pandas filtrará apenas as viaturas do 46º BPM e calculará o odômetro, consumo (km/l), gastos e anomalias.
+                </div>
+                <button type="submit" class="btn btn-primary px-4 fw-bold py-2 shadow-sm" id="btnDashSubmit">
+                    <i class="fa-solid fa-bolt me-1"></i> Cruzar e Gerar Relatório
+                </button>
+            </div>
+            
+            <div id="dashSpinner" class="text-center mt-3" style="display: none;">
+                <div class="spinner-border text-info spinner-border-sm me-2" role="status"></div>
+                <span class="text-info fw-semibold">Processando arquivo Excel e cruzando dados... Aguarde.</span>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Cards de Indicadores (KPIs) -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card card-tactical h-100 border-start border-4 border-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <small class="text-secondary text-uppercase fw-semibold">Viaturas</small>
+                        <h3 class="fw-bold mb-0 text-white mt-1">{{ stats.total_veiculos or 0 }}</h3>
+                    </div>
+                    <div class="kpi-icon-box bg-primary-subtle text-primary">
+                        <i class="fa-solid fa-car-side fs-4"></i>
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-2">Frota ativa no período</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-4 col-sm-6">
+        <div class="card card-tactical h-100 border-start border-4 border-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <small class="text-secondary text-uppercase fw-semibold">Km Total Percorrido</small>
+                        <h3 class="fw-bold mb-0 text-white mt-1">{{ "{:,.0f}".format(stats.total_km or 0).replace(',', '.') }} <span class="fs-6 text-secondary fw-normal">km</span></h3>
+                    </div>
+                    <div class="kpi-icon-box bg-info-subtle text-info">
+                        <i class="fa-solid fa-road fs-4"></i>
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-2">Quilometragem calculada</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card card-tactical h-100 border-start border-4 border-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <small class="text-secondary text-uppercase fw-semibold">Litros Abastecidos</small>
+                        <h3 class="fw-bold mb-0 text-white mt-1">{{ "{:,.1f}".format(stats.total_litros or 0).replace(',', '.') }} <span class="fs-6 text-secondary fw-normal">L</span></h3>
+                    </div>
+                    <div class="kpi-icon-box bg-warning-subtle text-warning">
+                        <i class="fa-solid fa-gas-pump fs-4"></i>
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-2">Volume total apurado</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-6 col-sm-6">
+        <div class="card card-tactical h-100 border-start border-4 border-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <small class="text-secondary text-uppercase fw-semibold">Média Consumo</small>
+                        <h3 class="fw-bold mb-0 text-white mt-1">{{ "{:.2f}".format(stats.media_km_l or 0) }} <span class="fs-6 text-secondary fw-normal">km/l</span></h3>
+                    </div>
+                    <div class="kpi-icon-box bg-success-subtle text-success">
+                        <i class="fa-solid fa-gauge fs-4"></i>
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-2">Eficiência da frota 46º BPM</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 col-sm-12">
+        <div class="card card-tactical h-100 border-start border-4 border-danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <small class="text-secondary text-uppercase fw-semibold">Gasto Total</small>
+                        <h3 class="fw-bold mb-0 text-white mt-1">R$ {{ "{:,.2f}".format(stats.total_valor or 0).replace(',', 'X').replace('.', ',').replace('X', '.') }}</h3>
+                    </div>
+                    <div class="kpi-icon-box bg-danger-subtle text-danger">
+                        <i class="fa-solid fa-brazilian-real-sign fs-4"></i>
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-2">Custo médio: R$ {{ "{:.2f}".format(stats.custo_medio_km or 0) }} / km</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if viaturas_com_abastecimento %}
+<form action="{{ url_for('gerar_relatorio_pdf') }}" method="POST">
+    <div class="card card-tactical h-100 border-start border-4 border-primary mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                <h5 class="fw-semibold text-white mb-0">
+                    <i class="fa-solid fa-check-double text-primary me-2"></i> Selecione as viaturas para a Planilha de Controle de Consumo (PDF)
+                </h5>
+                <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-secondary text-light btn-sm" onclick="document.querySelectorAll('.vtr-checkbox').forEach(cb => cb.checked = true)">
+                        Marcar Todas ({{ viaturas_com_abastecimento|length }})
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary text-light btn-sm" onclick="document.querySelectorAll('.vtr-checkbox').forEach(cb => cb.checked = false)">
+                        Desmarcar Todas
+                    </button>
+                </div>
+            </div>
+            <p class="text-secondary small mb-3">
+                Exibindo apenas as <strong>{{ viaturas_com_abastecimento|length }} viaturas</strong> que possuem abastecimentos registrados no período selecionado. Cada viatura selecionada será gerada em sua própria página no padrão oficial da Brigada Militar.
+            </p>
+            <div class="row g-2" style="max-height: 220px; overflow-y: auto;">
+                {% for v in viaturas_com_abastecimento %}
+                <div class="col-xl-3 col-lg-4 col-md-6 col-12">
+                    <div class="form-check p-2 rounded bg-dark border border-secondary border-opacity-25 d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center text-truncate me-1">
+                            <input class="form-check-input vtr-checkbox ms-1 me-2" type="checkbox" name="veiculos" value="{{ v.placa or v.prefixo }}" id="vtr{{ loop.index }}">
+                            <label class="form-check-label text-white text-truncate cursor-pointer" for="vtr{{ loop.index }}">
+                                {% if v.prefixo and v.prefixo != v.placa %}
+                                    <strong class="text-info">{{ v.prefixo }}</strong> <small class="text-secondary">({{ v.placa }})</small>
+                                {% else %}
+                                    <strong class="text-info">{{ v.placa }}</strong>
+                                {% endif %}
+                            </label>
+                        </div>
+                        <span class="badge bg-secondary bg-opacity-25 text-info border border-secondary border-opacity-25" title="{{ v.total_abastecimentos }} abastecimento(s) no período">
+                            {{ v.total_abastecimentos }} abast.
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Dados de Assinatura do Relatório -->
+            <div class="mt-3 p-3 rounded bg-dark border border-secondary border-opacity-25">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <div>
+                        <span class="small fw-bold text-white">
+                            <i class="fa-solid fa-signature text-warning me-1"></i> Assinatura do Relatório:
+                        </span>
+                        <span class="small text-secondary ms-1">
+                            <strong class="text-info">{{ assinatura_padrao.nome }}</strong> – {{ assinatura_padrao.graduacao }} ({{ assinatura_padrao.cargo }})
+                        </span>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary text-light py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAssinatura" aria-expanded="false">
+                        <i class="fa-solid fa-pen-to-square me-1"></i> Editar Assinatura
+                    </button>
+                </div>
+
+                <div class="collapse" id="collapseAssinatura">
+                    <div class="pt-2 border-top border-secondary border-opacity-25">
+                        <div class="row g-2">
+                            <div class="col-md-5 col-12">
+                                <label class="form-label small text-secondary mb-1">Nome do Militar</label>
+                                <input type="text" name="nome_assinante" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ assinatura_padrao.nome }}" placeholder="Ex: RÓGER SANTANA MANZZINI">
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-label small text-secondary mb-1">Graduação / Posto</label>
+                                <select name="graduacao_assinante" class="form-select form-select-sm bg-dark text-light border-secondary">
+                                    {% for grad in graduacoes_disponiveis %}
+                                    <option value="{{ grad }}" {% if assinatura_padrao.graduacao.upper() == grad.upper() %}selected{% endif %}>{{ grad }}</option>
+                                    {% endfor %}
+                                    {% if assinatura_padrao.graduacao and assinatura_padrao.graduacao.upper() not in ['SD PM', '2º SGT PM', '1º SGT PM'] %}
+                                    <option value="{{ assinatura_padrao.graduacao }}" selected>{{ assinatura_padrao.graduacao }}</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            <div class="col-md-4 col-6">
+                                <label class="form-label small text-secondary mb-1">Função / Cargo</label>
+                                <select name="cargo_assinante" class="form-select form-select-sm bg-dark text-light border-secondary">
+                                    {% for cargo in cargos_disponiveis %}
+                                    <option value="{{ cargo }}" {% if assinatura_padrao.cargo == cargo %}selected{% endif %}>{{ cargo }}</option>
+                                    {% endfor %}
+                                    {% if assinatura_padrao.cargo and assinatura_padrao.cargo not in cargos_disponiveis %}
+                                    <option value="{{ assinatura_padrao.cargo }}" selected>{{ assinatura_padrao.cargo }}</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="salvar_como_padrao" value="1" id="checkSalvarPadrao">
+                            <label class="form-check-label small text-secondary" for="checkSalvarPadrao">
+                                Salvar como novo padrão permanente para os próximos relatórios
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap mt-3">
+                <button type="submit" class="btn btn-primary px-4 fw-bold">
+                    <i class="fa-solid fa-file-pdf me-2"></i> Gerar Planilha de Controle de Consumo (PDF)
+                </button>
+                <button type="button" class="btn btn-outline-warning px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestado">
+                    <i class="fa-solid fa-file-signature me-2"></i> Gerar Atestado de Combustíveis (PDF)
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+{% elif viaturas_cadastradas %}
+
+<!-- Estado: Viaturas Cadastradas mas sem abastecimentos no período -->
+<div class="card card-tactical text-center py-4 my-3 border border-secondary border-opacity-25">
+    <div class="card-body">
+        <i class="fa-solid fa-gas-pump text-warning fa-2x mb-2"></i>
+        <h5 class="fw-bold text-white mb-1">Nenhum abastecimento encontrado no período</h5>
+        <p class="text-secondary col-md-7 mx-auto small mb-3">
+            Existem {{ viaturas_cadastradas|length }} viaturas cadastradas na frota do 46º BPM, mas nenhuma possui abastecimentos registrados no banco para este período. Importe a planilha geral do RS com dados do período para gerar a planilha.
+        </p>
+        <a href="{{ url_for('upload_page') }}" class="btn btn-primary btn-sm px-3 fw-semibold">
+            <i class="fa-solid fa-cloud-arrow-up me-1"></i> Importar Planilha do RS
+        </a>
+    </div>
+</div>
+{% else %}
+
+<!-- Estado Vazio / Sem Dados -->
+<div class="card card-tactical text-center py-5 my-4">
+    <div class="card-body">
+        <i class="fa-solid fa-file-excel text-secondary fa-3x mb-3"></i>
+        <h4 class="fw-bold text-white">Nenhum dado importado no momento</h4>
+        <p class="text-secondary col-md-6 mx-auto mb-4">
+            Importe a planilha geral de abastecimentos do RS juntamente com a lista de viaturas do 46º BPM, ou carregue os dados de demonstração com um clique para testar.
+        </p>
+        <div class="d-flex gap-2 justify-content-center">
+            <a href="{{ url_for('upload_page') }}" class="btn btn-primary px-4 fw-semibold">
+                <i class="fa-solid fa-cloud-arrow-up me-2"></i> Importar Planilhas
+            </a>
+            <form action="{{ url_for('carregar_dados_demonstracao') }}" method="POST" class="d-inline">
+                <button type="submit" class="btn btn-outline-info px-4 fw-semibold">
+                    <i class="fa-solid fa-wand-magic-sparkles me-2"></i> Carregar Demonstração
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Gráficos de Consumo e Distribuição -->
+<div class="row g-3 mb-4">
+    <div class="col-lg-8">
+        <div class="card card-tactical h-100">
+            <div class="card-header bg-transparent border-tactical d-flex justify-content-between align-items-center">
+                <span class="fw-semibold text-white">
+                    <i class="fa-solid fa-chart-column me-2 text-info"></i> Consumo Médio por Viatura (km/l)
+                </span>
+                <span class="badge bg-tactical-navy border border-secondary text-secondary">46º BPM</span>
+            </div>
+            <div class="card-body">
+                <canvas id="chartConsumoVtrs" height="130"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card card-tactical h-100">
+            <div class="card-header bg-transparent border-tactical d-flex justify-content-between align-items-center">
+                <span class="fw-semibold text-white">
+                    <i class="fa-solid fa-chart-pie me-2 text-warning"></i> Volume por Viatura
+                </span>
+                <span class="badge bg-tactical-navy border border-secondary text-secondary">Litros</span>
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center">
+                <div style="width: 100%; max-height: 250px;">
+                    <canvas id="chartVolumeVtrs"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela Resumo Rápido da Frota -->
+<div class="card card-tactical mb-4">
+    <div class="card-header bg-transparent border-tactical d-flex justify-content-between align-items-center">
+        <span class="fw-semibold text-white">
+            <i class="fa-solid fa-car me-2 text-primary"></i> Desempenho Consolidado por Viatura (46º BPM)
+        </span>
+        <a href="{{ url_for('relatorio') }}" class="btn btn-tactical-outline btn-sm">
+            Ver Relatório Completo <i class="fa-solid fa-arrow-right ms-1"></i>
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0 align-middle tactical-table">
+                <thead>
+                    <tr>
+                        <th class="ps-3">Prefixo</th>
+                        <th>Placa</th>
+                        <th>Modelo</th>
+                        <th>Fração / Cia</th>
+                        <th class="text-center">Abastecimentos</th>
+                        <th class="text-end">Km Rodado</th>
+                        <th class="text-end">Litros</th>
+                        <th class="text-end">Média (km/l)</th>
+                        <th class="text-end">Gasto Total</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center pe-3">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in resumo_viaturas %}
+                    <tr>
+                        <td class="ps-3 fw-bold text-info">{{ v.prefixo or '-' }}</td>
+                        <td><span class="badge bg-secondary font-monospace">{{ v.placa }}</span></td>
+                        <td>{{ v.modelo }}</td>
+                        <td><small class="text-secondary">{{ v.fracao }}</small></td>
+                        <td class="text-center">{{ v.qtd_abastecimentos }}</td>
+                        <td class="text-end fw-semibold">{{ "{:,.0f}".format(v.km_total_rodado).replace(',', '.') }} km</td>
+                        <td class="text-end">{{ "{:,.1f}".format(v.total_litros).replace(',', '.') }} L</td>
+                        <td class="text-end">
+                            {% if v.consumo_medio_km_l >= 9.0 %}
+                                <span class="badge bg-success-subtle text-success px-2 py-1 fs-7 fw-bold">{{ v.consumo_medio_km_l }} km/l</span>
+                            {% elif v.consumo_medio_km_l >= 7.0 %}
+                                <span class="badge bg-info-subtle text-info px-2 py-1 fs-7 fw-bold">{{ v.consumo_medio_km_l }} km/l</span>
+                            {% elif v.consumo_medio_km_l > 0 %}
+                                <span class="badge bg-warning-subtle text-warning px-2 py-1 fs-7 fw-bold">{{ v.consumo_medio_km_l }} km/l</span>
+                            {% else %}
+                                <span class="badge bg-secondary px-2 py-1 fs-7">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-light">R$ {{ "{:,.2f}".format(v.total_valor).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+                        <td class="text-center">
+                            {% if v.qtd_anomalias > 0 %}
+                                <span class="badge bg-danger-subtle text-danger" title="{{ v.qtd_anomalias }} alerta(s) de odômetro ou consumo">
+                                    <i class="fa-solid fa-triangle-exclamation me-1"></i> {{ v.qtd_anomalias }} Alertas
+                                </span>
+                            {% else %}
+                                <span class="badge bg-success-subtle text-success">
+                                    <i class="fa-solid fa-circle-check me-1"></i> Regular
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center pe-3">
+                            <a href="{{ url_for('viatura_detalhe', identificador=v.placa) }}" class="btn btn-sm btn-outline-info py-0 px-2" title="Ver Histórico Completo">
+                                <i class="fa-solid fa-eye"></i> Detalhes
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}
+
+{% block extra_scripts %}
+{% if resumo_viaturas %}
+<script>
+    // Dados para os gráficos passados pelo backend
+    const labelsViaturas = {{ resumo_viaturas | map(attribute='prefixo') | list | tojson }};
+    const placasViaturas = {{ resumo_viaturas | map(attribute='placa') | list | tojson }};
+    const mediasConsumo = {{ resumo_viaturas | map(attribute='consumo_medio_km_l') | list | tojson }};
+    const volumesLitros = {{ resumo_viaturas | map(attribute='total_litros') | list | tojson }};
+
+    // Nomes de exibição
+    const displayLabels = labelsViaturas.map((lbl, idx) => lbl && lbl !== '-' ? lbl : placasViaturas[idx]);
+
+    // Gráfico de Barras: Consumo Médio
+    const ctxBar = document.getElementById('chartConsumoVtrs').getContext('2d');
+    new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+            labels: displayLabels,
+            datasets: [{
+                label: 'Consumo Médio (km/l)',
+                data: mediasConsumo,
+                backgroundColor: 'rgba(56, 189, 248, 0.75)',
+                borderColor: '#38bdf8',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) { return `${ctx.raw} km/l`; }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.08)' },
+                    ticks: { color: '#94a3b8' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8' }
+                }
+            }
+        }
+    });
+
+    // Gráfico Doughnut: Volumes em Litros
+    const ctxDoughnut = document.getElementById('chartVolumeVtrs').getContext('2d');
+    new Chart(ctxDoughnut, {
+        type: 'doughnut',
+        data: {
+            labels: displayLabels,
+            datasets: [{
+                data: volumesLitros,
+                backgroundColor: [
+                    '#38bdf8', '#34d399', '#facc15', '#f87171',
+                    '#818cf8', '#fb923c', '#a78bfa', '#2dd4bf'
+                ],
+                borderWidth: 2,
+                borderColor: '#1e293b'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color: '#94a3b8', boxWidth: 12, padding: 8, font: { size: 10 } }
+                }
+            }
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}46º BPM - Gestão de Frota de Viaturas e Equipamentos{% endblock %}</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome 6 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/brasao_bm.png') }}">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-tactical-dark text-light">
+
+    <!-- Navbar Principal -->
+    <nav class="navbar navbar-expand-xl navbar-dark bg-tactical-navy border-bottom border-tactical sticky-top shadow-sm py-2">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand d-flex align-items-center gap-3 me-3" href="{{ url_for('dashboard') }}">
+                <img src="{{ url_for('static', filename='img/brasao_bm.png') }}" alt="Brasão Brigada Militar" class="brand-brasao-img">
+                <div>
+                    <span class="brand-title text-uppercase fw-bold text-white d-block lh-1">BRIGADA MILITAR - 46º BPM</span>
+                    <small class="brand-subtitle text-warning fw-semibold text-uppercase">Gestão de Frota de Viaturas e Equipamentos</small>
+                </div>
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navMain">
+                <!-- Seletor dos 3 Assuntos Principais da Frota -->
+                <div class="d-flex align-items-center bg-dark bg-opacity-75 p-1 rounded-3 border border-tactical my-2 my-xl-0 me-xl-3 gap-1">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-sm px-3 py-1 fw-bold rounded-2 text-uppercase d-flex align-items-center gap-2 module-pill {% if modulo_ativo == 'combustiveis' %}btn-warning text-dark shadow-sm{% else %}text-light btn-tactical-ghost{% endif %}">
+                        <i class="fa-solid fa-gas-pump"></i> Combustíveis
+                    </a>
+                    <a href="{{ url_for('modulo_manutencao') }}" class="btn btn-sm px-3 py-1 fw-bold rounded-2 text-uppercase d-flex align-items-center gap-2 module-pill {% if modulo_ativo == 'manutencao' %}btn-warning text-dark shadow-sm{% else %}text-light btn-tactical-ghost{% endif %}">
+                        <i class="fa-solid fa-screwdriver-wrench"></i> Manutenção
+                    </a>
+                    <a href="{{ url_for('modulo_pneus') }}" class="btn btn-sm px-3 py-1 fw-bold rounded-2 text-uppercase d-flex align-items-center gap-2 module-pill {% if modulo_ativo == 'pneus' %}btn-warning text-dark shadow-sm{% else %}text-light btn-tactical-ghost{% endif %}">
+                        <i class="fa-solid fa-circle-notch"></i> Pneus
+                    </a>
+                </div>
+
+                <!-- Submenus Contextuais do Módulo Ativo -->
+                {% if modulo_ativo == 'manutencao' %}
+                    <ul class="navbar-nav me-auto mb-2 mb-xl-0 gap-1">
+                        <li class="nav-item">
+                            <a class="nav-link px-3 active" href="{{ url_for('modulo_manutencao') }}">
+                                <i class="fa-solid fa-clipboard-list me-1"></i> Painel Manutenção
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link px-3" href="javascript:void(0)" data-bs-toggle="modal" data-bs-target="#modalNovaManutencao">
+                                <i class="fa-solid fa-plus me-1 text-warning"></i> Nova O.S.
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link px-3" href="javascript:void(0)" data-bs-toggle="modal" data-bs-target="#modalNovoEquipamento">
+                                <i class="fa-solid fa-toolbox me-1 text-info"></i> Novo Equipamento
+                            </a>
+                        </li>
+                    </ul>
+                {% elif modulo_ativo == 'pneus' %}
+                    <ul class="navbar-nav me-auto mb-2 mb-xl-0 gap-1">
+                        <li class="nav-item">
+                            <a class="nav-link px-3 active" href="{{ url_for('modulo_pneus') }}">
+                                <i class="fa-solid fa-circle-dot me-1"></i> Inventário Pneus
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link px-3" href="javascript:void(0)" data-bs-toggle="modal" data-bs-target="#modalNovoPneu">
+                                <i class="fa-solid fa-plus me-1 text-warning"></i> Cadastrar Pneu
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link px-3" href="javascript:void(0)" data-bs-toggle="modal" data-bs-target="#modalMedicaoPneu">
+                                <i class="fa-solid fa-arrows-rotate me-1 text-info"></i> Medição / Rodízio
+                            </a>
+                        </li>
+                    </ul>
+                {% else %}
+                    <ul class="navbar-nav me-auto mb-2 mb-xl-0 gap-1">
+                        <li class="nav-item">
+                            <a class="nav-link px-3 {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                                <i class="fa-solid fa-chart-pie me-1"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link px-3 {% if request.endpoint == 'upload_page' %}active{% endif %}" href="{{ url_for('upload_page') }}">
+                                <i class="fa-solid fa-cloud-arrow-up me-1"></i> Importar Planilhas
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link px-3 {% if request.endpoint == 'relatorio' %}active{% endif %}" href="{{ url_for('relatorio') }}">
+                                <i class="fa-solid fa-file-invoice me-1"></i> Relatório Consumo
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link px-3 {% if request.endpoint == 'listar_viaturas' %}active{% endif %}" href="{{ url_for('listar_viaturas') }}">
+                                <i class="fa-solid fa-car-side me-1"></i> Frota 46º BPM
+                            </a>
+                        </li>
+                    </ul>
+                {% endif %}
+
+                <div class="d-flex align-items-center gap-2">
+                    <a href="{{ url_for('exportar_excel') }}" class="btn btn-outline-success btn-sm px-3 fw-semibold">
+                        <i class="fa-solid fa-file-excel me-1"></i> Exportar Excel (.xlsx)
+                    </a>
+
+                    <div class="dropdown">
+                        <button class="btn btn-tactical-outline btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fa-solid fa-gear me-1"></i> Opções
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow">
+                            <li>
+                                <form action="{{ url_for('carregar_dados_demonstracao') }}" method="POST">
+                                    <button type="submit" class="dropdown-item text-info">
+                                        <i class="fa-solid fa-wand-magic-sparkles me-2"></i> Carregar Demonstração
+                                    </button>
+                                </form>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('baixar_exemplo', tipo='rs') }}">
+                                    <i class="fa-solid fa-download me-2"></i> Baixar Modelo RS
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('baixar_exemplo', tipo='alvo') }}">
+                                    <i class="fa-solid fa-download me-2"></i> Baixar Modelo Viaturas
+                                </a>
+                            </li>
+                            <li>
+                                <button type="button" class="dropdown-item text-warning" data-bs-toggle="modal" data-bs-target="#modalConfigAssinatura">
+                                    <i class="fa-solid fa-signature me-2"></i> Configurar Assinatura (Combustíveis)
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button" class="dropdown-item text-warning" data-bs-toggle="modal" data-bs-target="#modalConfigAtestadorManutencao">
+                                    <i class="fa-solid fa-user-check me-2"></i> Configurar Assinatura do Atestador (Manutenção)
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button" class="dropdown-item text-warning" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestado">
+                                    <i class="fa-solid fa-file-signature me-2"></i> Emitir Atestado de Combustíveis
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form action="{{ url_for('limpar_dados') }}" method="POST" onsubmit="return confirm('Deseja realmente zerar todos os abastecimentos do banco SQLite?');">
+                                    <button type="submit" class="dropdown-item text-danger">
+                                        <i class="fa-solid fa-trash-can me-2"></i> Zerar Banco de Dados
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Feedback e Mensagens Flash -->
+    <div class="container-fluid px-4 mt-3">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm d-flex align-items-center gap-2" role="alert">
+                        {% if category == 'success' %}
+                            <i class="fa-solid fa-circle-check fs-5"></i>
+                        {% elif category == 'danger' %}
+                            <i class="fa-solid fa-triangle-exclamation fs-5"></i>
+                        {% elif category == 'warning' %}
+                            <i class="fa-solid fa-circle-exclamation fs-5"></i>
+                        {% else %}
+                            <i class="fa-solid fa-circle-info fs-5"></i>
+                        {% endif %}
+                        <div>{{ message }}</div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Conteúdo Principal -->
+    <main class="container-fluid px-4 py-3">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Rodapé -->
+    <footer class="footer mt-auto py-3 bg-tactical-navy border-top border-tactical text-center text-muted">
+        <div class="container-fluid px-4">
+            <small>
+                Brigada Militar &bull; 46º Batalhão de Polícia Militar &bull; Bagé / RS &bull; Gestão de Frota de Viaturas e Equipamentos (P4)
+                <span class="mx-2">|</span>
+                Combustíveis &bull; Manutenção &bull; Pneus
+            </small>
+        </div>
+    </footer>
+
+    <!-- Modal de Configuração de Assinatura Padrão -->
+    <div class="modal fade" id="modalConfigAssinatura" tabindex="-1" aria-labelledby="modalConfigAssinaturaLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-tactical-card text-light border border-secondary border-opacity-25 shadow">
+                <div class="modal-header border-secondary border-opacity-25">
+                    <h5 class="modal-title fw-bold text-white" id="modalConfigAssinaturaLabel">
+                        <i class="fa-solid fa-signature text-warning me-2"></i> Configurar Assinatura Padrão
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <form action="{{ url_for('salvar_config_assinatura') }}" method="POST">
+                    <div class="modal-body">
+                        <p class="text-secondary small mb-3">
+                            Configure o militar responsável pela assinatura padrão da <strong>Planilha de Controle de Consumo</strong>. Estes dados serão carregados automaticamente em todas as próximas emissões.
+                        </p>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-light">Nome Completo do Militar</label>
+                            <input type="text" class="form-control bg-dark text-light border-secondary" name="nome" value="{{ assinatura_padrao.nome }}" required placeholder="Ex: RÓGER SANTANA MANZZINI">
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold text-light">Graduação / Posto</label>
+                                <select name="graduacao" class="form-select bg-dark text-light border-secondary">
+                                    {% for grad in graduacoes_disponiveis %}
+                                    <option value="{{ grad }}" {% if assinatura_padrao.graduacao.upper() == grad.upper() %}selected{% endif %}>{{ grad }}</option>
+                                    {% endfor %}
+                                    {% if assinatura_padrao.graduacao and assinatura_padrao.graduacao.upper() not in ['SD PM', '2º SGT PM', '1º SGT PM'] %}
+                                    <option value="{{ assinatura_padrao.graduacao }}" selected>{{ assinatura_padrao.graduacao }}</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold text-light">Função / Cargo</label>
+                                <select name="cargo" class="form-select bg-dark text-light border-secondary">
+                                    {% for cargo in cargos_disponiveis %}
+                                    <option value="{{ cargo }}" {% if assinatura_padrao.cargo == cargo %}selected{% endif %}>{{ cargo }}</option>
+                                    {% endfor %}
+                                    {% if assinatura_padrao.cargo and assinatura_padrao.cargo not in cargos_disponiveis %}
+                                    <option value="{{ assinatura_padrao.cargo }}" selected>{{ assinatura_padrao.cargo }}</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 text-center">
+                            <small class="text-secondary d-block mb-1">Prévia da assinatura:</small>
+                            <div class="fw-bold text-white">{{ assinatura_padrao.nome }} – {{ assinatura_padrao.graduacao }}</div>
+                            <div class="small text-secondary">{{ assinatura_padrao.cargo }}</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-25">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm fw-bold">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Salvar Padrão
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Configuração de Assinatura do Atestador (Manutenção) -->
+    <div class="modal fade" id="modalConfigAtestadorManutencao" tabindex="-1" aria-labelledby="modalConfigAtestadorManutencaoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-tactical-card text-light border border-secondary border-opacity-25 shadow">
+                <div class="modal-header border-secondary border-opacity-25">
+                    <h5 class="modal-title fw-bold text-white" id="modalConfigAtestadorManutencaoLabel">
+                        <i class="fa-solid fa-user-check text-warning me-2"></i> Assinatura do Atestador (Manutenção)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <form action="{{ url_for('salvar_config_atestador_route') }}" method="POST">
+                    <div class="modal-body">
+                        <p class="text-secondary small mb-3">
+                            Configure o militar responsável pelo recebimento padrão dos <strong>Atestados de Recebimento de Material/Serviço</strong>. Estes dados serão carregados automaticamente em todas as novas emissões.
+                        </p>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-light">Nome Completo do Militar</label>
+                            <input type="text" class="form-control bg-dark text-light border-secondary" name="nome" value="{{ atestador_padrao.nome }}" required placeholder="Ex: JULIANO INOCENTE VELEDA">
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold text-light">Graduação / Posto</label>
+                                <select name="graduacao" class="form-select bg-dark text-light border-secondary">
+                                    {% for grad in graduacoes_militares %}
+                                    <option value="{{ grad }}" {% if atestador_padrao.graduacao.upper() == grad.upper() %}selected{% endif %}>{{ grad }}</option>
+                                    {% endfor %}
+                                    {% if atestador_padrao.graduacao and atestador_padrao.graduacao not in graduacoes_militares %}
+                                    <option value="{{ atestador_padrao.graduacao }}" selected>{{ atestador_padrao.graduacao }}</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold text-light">Identificação Funcional (Id Func)</label>
+                                <input type="text" class="form-control bg-dark text-light border-secondary font-monospace" name="id_func" value="{{ atestador_padrao.id_func }}" required placeholder="Ex: 3155358">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-light">Função / Cargo</label>
+                            <select name="cargo" class="form-select bg-dark text-light border-secondary">
+                                {% for cargo in cargos_militares %}
+                                <option value="{{ cargo }}" {% if atestador_padrao.cargo == cargo %}selected{% endif %}>{{ cargo }}</option>
+                                {% endfor %}
+                                {% if atestador_padrao.cargo and atestador_padrao.cargo not in cargos_militares %}
+                                <option value="{{ atestador_padrao.cargo }}" selected>{{ atestador_padrao.cargo }}</option>
+                                {% endif %}
+                            </select>
+                        </div>
+                        <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 text-center">
+                            <small class="text-secondary d-block mb-1">Prévia da assinatura:</small>
+                            <div class="fw-bold text-white">{{ atestador_padrao.nome }}</div>
+                            <div class="small text-info">{{ atestador_padrao.graduacao }} – {{ atestador_padrao.cargo }}</div>
+                            <div class="small text-secondary font-monospace">Id Func {{ atestador_padrao.id_func }}</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-25">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Salvar Padrão
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Emissão do Atestado de Combustíveis -->
+    <div class="modal fade" id="modalEmitirAtestado" tabindex="-1" aria-labelledby="modalEmitirAtestadoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-tactical-card text-light border border-secondary border-opacity-25 shadow">
+                <div class="modal-header border-secondary border-opacity-25">
+                    <h5 class="modal-title fw-bold text-white" id="modalEmitirAtestadoLabel">
+                        <i class="fa-solid fa-file-signature text-warning me-2"></i> Emitir Atestado de Combustíveis
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <form action="{{ url_for('gerar_atestado_pdf_route') }}" method="POST">
+                    <div class="modal-body">
+                        <p class="text-secondary small mb-3">
+                            Selecione a <strong>modalidade de assinatura da autoridade</strong> para esta emissão do Atestado de Combustíveis:
+                        </p>
+
+                        <!-- Modalidades de Assinatura -->
+                        <div class="row g-2 mb-3">
+                            <!-- Opção 1: Comandante Titular -->
+                            <div class="col-md-4 col-12">
+                                <label class="p-3 rounded bg-dark border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start position-relative">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="modo" id="modoTitular" value="titular" {% if atestado_config.modo == 'titular' %}checked{% endif %}>
+                                        <span class="form-check-label fw-bold text-white d-block">Comandante Titular</span>
+                                    </div>
+                                    <small class="text-secondary d-block mt-2 lh-sm">
+                                        {{ atestado_config.titular_nome }}<br/>
+                                        <span class="text-info">{{ atestado_config.titular_cargo }}</span>
+                                    </small>
+                                </label>
+                            </div>
+
+                            <!-- Opção 2: Respondendo pelo Comando -->
+                            <div class="col-md-4 col-12">
+                                <label class="p-3 rounded bg-dark border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start position-relative">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="modo" id="modoRespondendo" value="respondendo" {% if atestado_config.modo == 'respondendo' %}checked{% endif %}>
+                                        <span class="form-check-label fw-bold text-white d-block">Respondendo p/ Cmt</span>
+                                    </div>
+                                    <small class="text-secondary d-block mt-2 lh-sm">
+                                        {{ atestado_config.respondendo_nome }}<br/>
+                                        <span class="text-info">{{ atestado_config.respondendo_cargo }}</span>
+                                    </small>
+                                </label>
+                            </div>
+
+                            <!-- Opção 3: No Impedimento (Titular + Subcomandante) -->
+                            <div class="col-md-4 col-12">
+                                <label class="p-3 rounded bg-dark border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start position-relative">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="modo" id="modoImpedimento" value="impedimento" {% if atestado_config.modo == 'impedimento' or not atestado_config.modo %}checked{% endif %}>
+                                        <span class="form-check-label fw-bold text-white d-block">No Impedimento</span>
+                                    </div>
+                                    <small class="text-secondary d-block mt-2 lh-sm">
+                                        <i>No impedimento:</i> {{ atestado_config.titular_nome }}<br/>
+                                        Assina: <span class="text-info">{{ atestado_config.subcomandante_nome }}</span>
+                                    </small>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Bloco do Texto Editável do Atestado -->
+                        <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label for="textareaTextoAtestado" class="form-label small fw-bold text-light mb-0">
+                                    <i class="fa-solid fa-file-pen text-warning me-1"></i> Texto do Atestado (Editável):
+                                </label>
+                                <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" id="btnRestaurarTextoPadrao" style="font-size: 0.75rem;" title="Restaura o texto padrão oficial com cálculos automáticos">
+                                    <i class="fa-solid fa-rotate-left me-1"></i> Restaurar Padrão
+                                </button>
+                            </div>
+                            <small class="text-secondary d-block mb-2" style="font-size: 0.78rem;">
+                                Preenchido por padrão com os valores e datas do período. Edite livremente caso queira personalizar este atestado.
+                            </small>
+                            <textarea 
+                                name="texto_atestado" 
+                                id="textareaTextoAtestado" 
+                                class="form-control bg-dark text-light border-secondary small" 
+                                rows="5" 
+                                style="font-size: 0.84rem; line-height: 1.45; resize: vertical;"
+                                data-padrao="{{ texto_padrao_atestado }}"
+                                placeholder="Texto do atestado..."
+                            >{{ texto_padrao_atestado }}</textarea>
+                        </div>
+
+                        <!-- Botão para Expandir Edição Personalizada das Assinaturas -->
+                        <div class="mb-3 text-end">
+                            <button class="btn btn-link btn-sm text-secondary p-0 text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAtestadoEdit" aria-expanded="false">
+                                <i class="fa-solid fa-pen-to-square me-1"></i> Editar nomes, postos ou gestor de frota
+                            </button>
+                        </div>
+
+                        <!-- Seção Expansível para Edição -->
+                        <div class="collapse" id="collapseAtestadoEdit">
+                            <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 mb-3">
+                                <h6 class="fw-bold text-warning mb-2 small"><i class="fa-solid fa-sliders me-1"></i> Personalizar Dados das Assinaturas:</h6>
+                                
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Comandante Titular (Nome)</label>
+                                        <input type="text" name="titular_nome" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_config.titular_nome }}">
+                                    </div>
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Comandante Titular (Posto/Função)</label>
+                                        <input type="text" name="titular_cargo" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_config.titular_cargo }}">
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Respondendo pelo Comando (Nome)</label>
+                                        <input type="text" name="respondendo_nome" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_config.respondendo_nome }}">
+                                    </div>
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Respondendo pelo Comando (Posto/Função)</label>
+                                        <input type="text" name="respondendo_cargo" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_config.respondendo_cargo }}">
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Subcomandante (Nome - No impedimento)</label>
+                                        <input type="text" name="subcomandante_nome" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_config.subcomandante_nome }}">
+                                    </div>
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Subcomandante (Posto/Função)</label>
+                                        <input type="text" name="subcomandante_cargo" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_config.subcomandante_cargo }}">
+                                    </div>
+                                </div>
+
+                                <div class="row g-2">
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Gestor de Frota (Nome)</label>
+                                        <input type="text" name="gestor_nome" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_config.gestor_nome }}">
+                                    </div>
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Gestor de Frota (Posto/Função)</label>
+                                        <input type="text" name="gestor_cargo" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_config.gestor_cargo }}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="salvar_como_padrao" value="1" id="checkSalvarPadraoAtestado">
+                            <label class="form-check-label small text-secondary" for="checkSalvarPadraoAtestado">
+                                Salvar este modo e assinaturas como novo padrão para os próximos atestados
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-25">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark">
+                            <i class="fa-solid fa-file-pdf me-1"></i> Gerar e Baixar Atestado (PDF)
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const btnRestaurar = document.getElementById('btnRestaurarTextoPadrao');
+            const textareaTexto = document.getElementById('textareaTextoAtestado');
+            const modalAtestado = document.getElementById('modalEmitirAtestado');
+
+            if (btnRestaurar && textareaTexto) {
+                btnRestaurar.addEventListener('click', function () {
+                    const padrao = textareaTexto.getAttribute('data-padrao');
+                    if (padrao && padrao.trim()) {
+                        textareaTexto.value = padrao;
+                    } else {
+                        fetch('/api/atestado/texto-padrao')
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data && data.texto) {
+                                    textareaTexto.value = data.texto;
+                                    textareaTexto.setAttribute('data-padrao', data.texto);
+                                }
+                            })
+                            .catch(err => console.error('Erro ao buscar texto padrão:', err));
+                    }
+                });
+            }
+
+            if (modalAtestado && textareaTexto) {
+                modalAtestado.addEventListener('show.bs.modal', function () {
+                    if (!textareaTexto.value.trim()) {
+                        fetch('/api/atestado/texto-padrao')
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data && data.texto) {
+                                    textareaTexto.value = data.texto;
+                                    textareaTexto.setAttribute('data-padrao', data.texto);
+                                }
+                            })
+                            .catch(err => console.error('Erro ao atualizar texto do atestado:', err));
+                    }
+                });
+            }
+        });
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

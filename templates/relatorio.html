@@ -1,0 +1,289 @@
+{% extends 'base.html' %}
+
+{% block title %}Relatório de Consumo - 46º BPM (Bagé/RS){% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+    <div class="col-md-7">
+        <h2 class="fw-bold mb-1 d-flex align-items-center gap-2">
+            <i class="fa-solid fa-file-invoice text-success"></i> Relatório de Consumo de Viaturas
+        </h2>
+        <p class="text-secondary mb-0">
+            Dados filtrados e calculados exclusivamente para os veículos monitorados do 46º BPM (Bagé).
+        </p>
+    </div>
+    <div class="col-md-5 text-md-end mt-3 mt-md-0 d-flex gap-2 justify-content-md-end">
+        <button type="button" class="btn btn-warning px-3 fw-bold text-dark shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestado">
+            <i class="fa-solid fa-file-signature me-1"></i> Atestado de Combustíveis (PDF)
+        </button>
+        <a href="{{ url_for('exportar_excel') }}" class="btn btn-success px-3 fw-semibold">
+            <i class="fa-solid fa-file-excel me-1"></i> Baixar Planilha Formatada (.xlsx)
+        </a>
+        <button onclick="window.print()" class="btn btn-tactical-outline btn-sm px-3">
+            <i class="fa-solid fa-print me-1"></i> Imprimir
+        </button>
+    </div>
+</div>
+
+<!-- Barra de Resumo Rápido -->
+<div class="row g-2 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="p-3 rounded bg-tactical-navy border border-tactical text-center">
+            <small class="text-secondary d-block">Viaturas Monitoradas</small>
+            <span class="fs-4 fw-bold text-white">{{ stats.total_veiculos or 0 }}</span>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="p-3 rounded bg-tactical-navy border border-tactical text-center">
+            <small class="text-secondary d-block">Km Total Percorrido</small>
+            <span class="fs-4 fw-bold text-info">{{ "{:,.0f}".format(stats.total_km or 0).replace(',', '.') }} km</span>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="p-3 rounded bg-tactical-navy border border-tactical text-center">
+            <small class="text-secondary d-block">Combustível Total</small>
+            <span class="fs-4 fw-bold text-warning">{{ "{:,.1f}".format(stats.total_litros or 0).replace(',', '.') }} L</span>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="p-3 rounded bg-tactical-navy border border-tactical text-center">
+            <small class="text-secondary d-block">Consumo Médio da Frota</small>
+            <span class="fs-4 fw-bold text-success">{{ "{:.2f}".format(stats.media_km_l or 0) }} km/l</span>
+        </div>
+    </div>
+</div>
+
+<!-- Abas de Navegação do Relatório -->
+<ul class="nav nav-tabs border-tactical mb-3" id="relatorioTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-semibold text-light" id="resumo-tab" data-bs-toggle="tab" data-bs-target="#tab-resumo" type="button" role="tab">
+            <i class="fa-solid fa-table-list me-2 text-primary"></i> Resumo por Viatura ({{ resumo_viaturas|length }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold text-light" id="abastecimentos-tab" data-bs-toggle="tab" data-bs-target="#tab-abastecimentos" type="button" role="tab">
+            <i class="fa-solid fa-gas-pump me-2 text-warning"></i> Histórico de Abastecimentos ({{ abastecimentos|length }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold text-light" id="alertas-tab" data-bs-toggle="tab" data-bs-target="#tab-alertas" type="button" role="tab">
+            <i class="fa-solid fa-triangle-exclamation me-2 text-danger"></i> Alertas e Anomalias ({{ anomalias|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="relatorioTabsContent">
+    
+    <!-- ABA 1: RESUMO POR VIATURA -->
+    <div class="tab-pane fade show active" id="tab-resumo" role="tabpanel">
+        <div class="card card-tactical">
+            <div class="card-header bg-transparent border-tactical py-3 d-flex justify-content-between align-items-center">
+                <span class="fw-semibold text-white">
+                    Tabela Consolidada de Consumo &bull; 46º BPM (Bagé/RS)
+                </span>
+                <div class="col-md-4">
+                    <input type="text" id="filtroVtrs" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Filtrar por placa, prefixo, modelo..." onkeyup="filtrarTabela('tabelaResumo', this.value)">
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle tactical-table" id="tabelaResumo">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Prefixo</th>
+                                <th>Placa</th>
+                                <th>Modelo</th>
+                                <th>Fração / Cia</th>
+                                <th class="text-center">Abastec.</th>
+                                <th class="text-end">Km Inicial</th>
+                                <th class="text-end">Km Final</th>
+                                <th class="text-end">Km Rodado</th>
+                                <th class="text-end">Litros Totais</th>
+                                <th class="text-end">Média (km/l)</th>
+                                <th class="text-end">Gasto Total</th>
+                                <th class="text-end">Custo (R$/km)</th>
+                                <th class="text-center pe-3">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in resumo_viaturas %}
+                            <tr>
+                                <td class="ps-3 fw-bold text-info">{{ v.prefixo or '-' }}</td>
+                                <td><span class="badge bg-secondary font-monospace">{{ v.placa }}</span></td>
+                                <td>{{ v.modelo }}</td>
+                                <td><small class="text-secondary">{{ v.fracao }}</small></td>
+                                <td class="text-center">{{ v.qtd_abastecimentos }}</td>
+                                <td class="text-end text-muted">{{ "{:,.0f}".format(v.km_inicial).replace(',', '.') }}</td>
+                                <td class="text-end text-muted">{{ "{:,.0f}".format(v.km_final).replace(',', '.') }}</td>
+                                <td class="text-end fw-semibold text-white">{{ "{:,.0f}".format(v.km_total_rodado).replace(',', '.') }} km</td>
+                                <td class="text-end text-warning">{{ "{:,.1f}".format(v.total_litros).replace(',', '.') }} L</td>
+                                <td class="text-end">
+                                    {% if v.consumo_medio_km_l >= 9.0 %}
+                                        <span class="badge bg-success-subtle text-success px-2 py-1 fs-7 fw-bold">{{ v.consumo_medio_km_l }} km/l</span>
+                                    {% elif v.consumo_medio_km_l >= 7.0 %}
+                                        <span class="badge bg-info-subtle text-info px-2 py-1 fs-7 fw-bold">{{ v.consumo_medio_km_l }} km/l</span>
+                                    {% elif v.consumo_medio_km_l > 0 %}
+                                        <span class="badge bg-warning-subtle text-warning px-2 py-1 fs-7 fw-bold">{{ v.consumo_medio_km_l }} km/l</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary px-2 py-1 fs-7">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end text-light fw-semibold">R$ {{ "{:,.2f}".format(v.total_valor).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+                                <td class="text-end text-muted">R$ {{ "{:.2f}".format(v.custo_km) }}</td>
+                                <td class="text-center pe-3">
+                                    <a href="{{ url_for('viatura_detalhe', identificador=v.placa) }}" class="btn btn-sm btn-outline-info py-0 px-2">
+                                        <i class="fa-solid fa-chart-line me-1"></i> Ficha
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ABA 2: HISTÓRICO DE ABASTECIMENTOS -->
+    <div class="tab-pane fade" id="tab-abastecimentos" role="tabpanel">
+        <div class="card card-tactical">
+            <div class="card-header bg-transparent border-tactical py-3 d-flex justify-content-between align-items-center">
+                <span class="fw-semibold text-white">
+                    Histórico Cronológico Filtrado &bull; 46º BPM
+                </span>
+                <div class="col-md-4">
+                    <input type="text" id="filtroAbast" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Buscar por posto, motorista, placa..." onkeyup="filtrarTabela('tabelaAbast', this.value)">
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                    <table class="table table-dark table-hover mb-0 align-middle tactical-table" id="tabelaAbast">
+                        <thead class="sticky-top bg-tactical-navy">
+                            <tr>
+                                <th class="ps-3">Data / Hora</th>
+                                <th>Prefixo</th>
+                                <th>Placa</th>
+                                <th class="text-end">Odômetro</th>
+                                <th class="text-end">Km Rodado</th>
+                                <th class="text-end">Litros</th>
+                                <th class="text-end">Consumo</th>
+                                <th class="text-end">Total (R$)</th>
+                                <th>Combustível</th>
+                                <th>Posto / Estabelecimento</th>
+                                <th>Cidade</th>
+                                <th class="pe-3">Observações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in abastecimentos %}
+                            <tr {% if a.anomalia == 1 %}class="table-warning text-dark"{% endif %}>
+                                <td class="ps-3 text-nowrap"><small>{{ a.data_abastecimento }}</small></td>
+                                <td class="fw-bold text-info">{{ a.prefixo or '-' }}</td>
+                                <td><span class="badge bg-secondary font-monospace">{{ a.placa }}</span></td>
+                                <td class="text-end">{{ "{:,.0f}".format(a.odometro).replace(',', '.') }}</td>
+                                <td class="text-end fw-semibold">
+                                    {% if a.km_rodado and a.km_rodado > 0 %}
+                                        +{{ "{:,.0f}".format(a.km_rodado).replace(',', '.') }} km
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ "{:,.1f}".format(a.litros).replace(',', '.') }} L</td>
+                                <td class="text-end">
+                                    {% if a.consumo_km_l and a.consumo_km_l > 0 %}
+                                        <span class="badge bg-dark-subtle text-light border border-secondary">{{ a.consumo_km_l }} km/l</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">R$ {{ "{:,.2f}".format(a.valor_total).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+                                <td><small class="badge bg-secondary">{{ a.tipo_combustivel }}</small></td>
+                                <td><small>{{ a.posto }}</small></td>
+                                <td><small>{{ a.cidade }}</small></td>
+                                <td class="pe-3">
+                                    {% if a.anomalia_obs %}
+                                        <small class="text-warning"><i class="fa-solid fa-triangle-exclamation me-1"></i> {{ a.anomalia_obs }}</small>
+                                    {% else %}
+                                        <small class="text-muted">-</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ABA 3: ALERTAS E ANOMALIAS -->
+    <div class="tab-pane fade" id="tab-alertas" role="tabpanel">
+        <div class="card card-tactical">
+            <div class="card-header bg-transparent border-tactical py-3">
+                <span class="fw-semibold text-warning">
+                    <i class="fa-solid fa-triangle-exclamation me-2"></i> Registros Marcados para Conferência da Logística
+                </span>
+            </div>
+            <div class="card-body p-0">
+                {% if not anomalias %}
+                <div class="text-center py-5">
+                    <i class="fa-solid fa-circle-check text-success fa-3x mb-2"></i>
+                    <h5 class="text-white">Nenhuma anomalia detectada</h5>
+                    <p class="text-secondary">Todos os odômetros e consumos calculados estão regulares.</p>
+                </div>
+                {% else %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle tactical-table">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Data</th>
+                                <th>Prefixo</th>
+                                <th>Placa</th>
+                                <th class="text-end">Odômetro</th>
+                                <th class="text-end">Km Anterior</th>
+                                <th class="text-end">Litros</th>
+                                <th class="text-end">Consumo Calculado</th>
+                                <th>Posto</th>
+                                <th class="pe-3">Motivo do Alerta</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in anomalias %}
+                            <tr>
+                                <td class="ps-3"><small>{{ a.data_abastecimento }}</small></td>
+                                <td class="fw-bold text-info">{{ a.prefixo }}</td>
+                                <td><span class="badge bg-secondary font-monospace">{{ a.placa }}</span></td>
+                                <td class="text-end">{{ "{:,.0f}".format(a.odometro).replace(',', '.') }}</td>
+                                <td class="text-end">{{ "{:,.0f}".format(a.km_anterior or 0).replace(',', '.') }}</td>
+                                <td class="text-end">{{ a.litros }} L</td>
+                                <td class="text-end">{{ a.consumo_km_l or '-' }} km/l</td>
+                                <td><small>{{ a.posto }}</small></td>
+                                <td class="pe-3 text-warning">
+                                    <i class="fa-solid fa-circle-exclamation me-1"></i> {{ a.anomalia_obs }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function filtrarTabela(tableId, query) {
+        query = query.toLowerCase();
+        const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(query) ? '' : 'none';
+        });
+    }
+</script>
+{% endblock %}

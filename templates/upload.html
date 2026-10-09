@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+
+{% block title %}Importar Planilhas - 46º BPM (Bagé/RS){% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="d-flex align-items-center justify-content-between mb-4">
+            <div>
+                <h2 class="fw-bold mb-1 d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-cloud-arrow-up text-primary"></i> Importação e Processamento de Planilhas
+                </h2>
+                <p class="text-secondary mb-0">
+                    O sistema irá cruzar automaticamente a planilha de todo o estado do RS isolando apenas as viaturas do 46º BPM (Bagé).
+                </p>
+            </div>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-tactical-outline btn-sm">
+                <i class="fa-solid fa-arrow-left me-1"></i> Voltar ao Painel
+            </a>
+        </div>
+
+        <div class="row g-4">
+            <!-- Formulário Principal de Envio -->
+            <div class="col-lg-7">
+                <div class="card card-tactical shadow-sm">
+                    <div class="card-header bg-transparent border-tactical py-3">
+                        <span class="fw-bold text-white fs-5">
+                            <i class="fa-solid fa-file-excel text-success me-2"></i> Seleção dos Arquivos Excel (.xlsx / .xls)
+                        </span>
+                    </div>
+                    <div class="card-body p-4">
+                        <form action="{{ url_for('processar_arquivos') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
+                            
+                            <!-- Campo 1: Planilha RS -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-white d-flex align-items-center justify-content-between">
+                                    <span>
+                                        <span class="badge bg-primary me-2">1</span> Planilha Geral de Abastecimentos (RS)
+                                    </span>
+                                    <span class="text-danger small">* Obrigatório</span>
+                                </label>
+                                <div class="upload-dropzone p-4 text-center border rounded-3 bg-dark-subtle position-relative" id="dropzone_rs" onclick="document.getElementById('arquivo_rs').click()">
+                                    <div class="dropzone-icon-box mb-2">
+                                        <i class="fa-solid fa-file-excel text-info fs-3"></i>
+                                    </div>
+                                    <h6 class="text-white mb-1" id="rs_title">Clique ou arraste o arquivo do RS aqui</h6>
+                                    <small class="text-muted d-block" id="rs_desc">Planilha (.xlsx ou .xls) com abastecimentos de todo o estado</small>
+                                    <input type="file" name="arquivo_rs" id="arquivo_rs" class="d-none" accept=".xlsx, .xls" required onchange="handleFileSelect(this, 'rs_title', 'rs_desc', 'dropzone_rs')">
+                                </div>
+                            </div>
+
+                            <!-- Campo 2: Viaturas / Placas Alvo 46º BPM -->
+                            <div class="mb-4">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <label class="form-label fw-bold text-white mb-0">
+                                        <span class="badge bg-warning text-dark me-2">2</span> Placas / Viaturas a Extrair <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-warning active py-0 px-2 fs-7" id="btnModoPlanilhaUpload" onclick="alternarModoPlacasUpload('planilha')">
+                                            <i class="fa-solid fa-file-excel me-1"></i> Upload Planilha
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning py-0 px-2 fs-7" id="btnModoTextoUpload" onclick="alternarModoPlacasUpload('texto')">
+                                            <i class="fa-solid fa-keyboard me-1"></i> Digitar Placas
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                {% if viaturas_cadastradas %}
+                                <div class="form-check form-switch mb-3 p-3 rounded border border-tactical bg-tactical-navy">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" id="usar_viaturas_cadastradas" name="usar_viaturas_cadastradas" value="1" checked onchange="alternarCampoAlvo(this)">
+                                    <label class="form-check-label text-white fw-semibold" for="usar_viaturas_cadastradas">
+                                        Utilizar frota já cadastrada no SQLite ({{ viaturas_cadastradas|length }} viaturas do 46º BPM)
+                                    </label>
+                                    <small class="text-muted d-block mt-1">
+                                        Desmarque caso queira fornecer uma nova planilha ou novas placas.
+                                    </small>
+                                </div>
+                                {% endif %}
+
+                                <!-- Modo 1: Upload Planilha de Placas -->
+                                <div id="boxPlanilhaAlvoUpload" {% if viaturas_cadastradas %}style="display: none;"{% endif %}>
+                                    <div class="upload-dropzone p-4 text-center border rounded-3 bg-dark-subtle position-relative" id="dropzone_alvo" onclick="document.getElementById('arquivo_alvo').click()">
+                                        <div class="dropzone-icon-box mb-2">
+                                            <i class="fa-solid fa-car-side text-warning fs-3"></i>
+                                        </div>
+                                        <h6 class="text-white mb-1" id="alvo_title">Clique ou arraste a planilha com as placas</h6>
+                                        <small class="text-muted d-block" id="alvo_desc">Planilha (.xlsx ou .xls) com a lista de placas das viaturas</small>
+                                        <input type="file" name="arquivo_alvo" id="arquivo_alvo" class="d-none" accept=".xlsx, .xls" onchange="handleFileSelect(this, 'alvo_title', 'alvo_desc', 'dropzone_alvo')">
+                                    </div>
+                                </div>
+
+                                <!-- Modo 2: Digitar / Colar Placas -->
+                                <div id="boxTextoAlvoUpload" style="display: none;">
+                                    <textarea name="texto_placas" id="upload_texto_placas" class="form-control bg-dark text-light border-secondary font-monospace" rows="4" placeholder="Digite ou cole as placas separadas por vírgula ou linha:&#10;Ex: IXO8A12, JBG9A87, JCY4B11, IXO8A15, JZZ7C34..."></textarea>
+                                    <small class="text-muted d-block mt-1">Informe as placas que deseja filtrar nos abastecimentos.</small>
+                                </div>
+                            </div>
+
+                            <!-- Botão de Processar com Feedback -->
+                            <div class="d-grid mt-4">
+                                <button type="submit" class="btn btn-primary btn-lg fw-bold py-3" id="btnSubmit">
+                                    <i class="fa-solid fa-calculator me-2"></i> Cruzar e Calcular Consumo
+                                </button>
+                            </div>
+
+                            <!-- Spinner de Processamento -->
+                            <div id="processandoSpinner" class="text-center mt-3" style="display: none;">
+                                <div class="spinner-border text-info" role="status"></div>
+                                <p class="text-info mt-2 fw-semibold">Processando com Pandas e calculando consumos... Aguarde.</p>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Painel Informativo Lateral -->
+            <div class="col-lg-5">
+                <!-- Como Funciona o Cruzamento -->
+                <div class="card card-tactical mb-4">
+                    <div class="card-header bg-transparent border-tactical py-3">
+                        <span class="fw-semibold text-white">
+                            <i class="fa-solid fa-lightbulb text-warning me-2"></i> Como Funciona o Motor de Cálculo
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0 d-flex flex-column gap-3 text-secondary">
+                            <li class="d-flex align-items-start gap-2">
+                                <i class="fa-solid fa-filter text-info mt-1"></i>
+                                <div>
+                                    <strong class="text-white">Filtragem Estrita:</strong>
+                                    O Pandas analisa todas as linhas do estado e isola apenas os registros cujas placas ou prefixos coincidem com os veículos informados.
+                                </div>
+                            </li>
+                            <li class="d-flex align-items-start gap-2">
+                                <i class="fa-solid fa-arrow-down-1-9 text-success mt-1"></i>
+                                <div>
+                                    <strong class="text-white">Ordenação Cronológica:</strong>
+                                    Os cupons de cada viatura são organizados por data e odômetro para calcular o intervalo de quilometragem percorrida (&Delta;km).
+                                </div>
+                            </li>
+                            <li class="d-flex align-items-start gap-2">
+                                <i class="fa-solid fa-gauge-high text-warning mt-1"></i>
+                                <div>
+                                    <strong class="text-white">Cálculo de Consumo Real (km/l):</strong>
+                                    <code>km_rodado / litros</code> em cada abastecimento, além da média ponderada consolidada da viatura e da frota.
+                                </div>
+                            </li>
+                            <li class="d-flex align-items-start gap-2">
+                                <i class="fa-solid fa-triangle-exclamation text-danger mt-1"></i>
+                                <div>
+                                    <strong class="text-white">Detecção de Anomalias:</strong>
+                                    Identifica odômetros regressivos, registros duplicados e valores de consumo fora do padrão aceitável.
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Modelos de Exemplo para Download -->
+                <div class="card card-tactical">
+                    <div class="card-header bg-transparent border-tactical py-3">
+                        <span class="fw-semibold text-white">
+                            <i class="fa-solid fa-download text-success me-2"></i> Modelos de Planilhas para Teste
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-secondary small mb-3">
+                            Você pode baixar modelos prontos e preenchidos para verificar o formato recomendado ou testar o envio:
+                        </p>
+                        <div class="d-flex flex-column gap-2">
+                            <a href="{{ url_for('baixar_exemplo', tipo='rs') }}" class="btn btn-tactical-outline btn-sm text-start py-2">
+                                <i class="fa-solid fa-file-excel text-success me-2"></i> Baixar Planilha Exemplo: <strong>Abastecimentos RS</strong>
+                            </a>
+                            <a href="{{ url_for('baixar_exemplo', tipo='alvo') }}" class="btn btn-tactical-outline btn-sm text-start py-2">
+                                <i class="fa-solid fa-file-excel text-info me-2"></i> Baixar Planilha Exemplo: <strong>Viaturas Alvo 46º BPM</strong>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function alternarCampoAlvo(switchElem) {
+        const dropzone = document.getElementById('dropzone_alvo');
+        const inputAlvo = document.getElementById('arquivo_alvo');
+        if (switchElem.checked) {
+            dropzone.style.display = 'none';
+            inputAlvo.required = false;
+        } else {
+            dropzone.style.display = 'block';
+            inputAlvo.required = true;
+        }
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', function() {
+        document.getElementById('btnSubmit').disabled = true;
+        document.getElementById('processandoSpinner').style.display = 'block';
+    });
+</script>
+{% endblock %}
