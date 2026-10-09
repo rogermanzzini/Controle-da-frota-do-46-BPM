@@ -123,13 +123,17 @@
             <form method="POST" action="{{ url_for('login') }}">
                 <div class="mb-3">
                     <label class="form-label fw-semibold" for="username">
-                        <i class="bi bi-person-fill me-1"></i>Usuário
+                        <i class="bi bi-person-badge-fill me-1"></i>ID Funcional
                     </label>
                     <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-person"></i></span>
+                        <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
                         <input type="text" class="form-control" id="username" name="username"
-                               placeholder="seu.usuario" autocomplete="username" required autofocus>
+                               placeholder="0000000"
+                               pattern="\d{7}" maxlength="7" inputmode="numeric"
+                               title="Digite os 7 dígitos do seu ID Funcional"
+                               autocomplete="username" required autofocus>
                     </div>
+                    <small class="text-muted">7 dígitos numéricos</small>
                 </div>
                 <div class="mb-4">
                     <label class="form-label fw-semibold" for="senha">

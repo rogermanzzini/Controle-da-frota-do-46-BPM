@@ -22,7 +22,7 @@
                 <table class="table table-dark table-hover align-middle mb-0">
                     <thead class="table-secondary text-dark">
                         <tr>
-                            <th class="ps-3">Usuário</th>
+                            <th class="ps-3">ID Funcional</th>
                             <th>Nome Completo</th>
                             <th>Papel</th>
                             <th>Status</th>
@@ -107,10 +107,11 @@
             <form method="POST" action="{{ url_for('admin_criar_usuario') }}">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label text-light">Nome de usuário <span class="text-danger">*</span></label>
+                        <label class="form-label text-light">ID Funcional <span class="text-danger">*</span></label>
                         <input type="text" name="username" class="form-control bg-dark text-light border-secondary"
-                               placeholder="ex: joao.silva" pattern="[a-zA-Z0-9._-]+" required>
-                        <small class="text-muted">Sem espaços. Letras, números, ponto e traço.</small>
+                               placeholder="0000000" pattern="\d{7}" maxlength="7" inputmode="numeric"
+                               title="7 dígitos numéricos" required>
+                        <small class="text-muted">7 dígitos numéricos (ex: 3155358)</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-light">Nome Completo <span class="text-danger">*</span></label>

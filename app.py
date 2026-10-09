@@ -185,12 +185,15 @@ def admin_criar_usuario():
     """Cria um novo usuário."""
     if not current_user.is_admin:
         return jsonify({'erro': 'Acesso negado'}), 403
-    username = request.form.get('username', '').strip().lower()
+    username = request.form.get('username', '').strip()
     nome_completo = request.form.get('nome_completo', '').strip()
     senha = request.form.get('senha', '')
     papel = request.form.get('papel', 'operador')
     if not username or not nome_completo or not senha:
         flash('Preencha todos os campos obrigatórios.', 'danger')
+        return redirect(url_for('admin_usuarios'))
+    if not username.isdigit() or len(username) != 7:
+        flash('O ID Funcional deve conter exatamente 7 dígitos numéricos.', 'danger')
         return redirect(url_for('admin_usuarios'))
     if len(senha) < 6:
         flash('A senha deve ter pelo menos 6 caracteres.', 'danger')

@@ -289,7 +289,7 @@ def _criar_admin_padrao():
         senha_hash = hashlib.sha256('admin123'.encode()).hexdigest()
         cursor.execute(
             "INSERT INTO usuarios (username, nome_completo, senha_hash, papel) VALUES (?, ?, ?, ?)",
-            ('admin', 'Administrador', senha_hash, 'admin')
+            ('0000001', 'Administrador', senha_hash, 'admin')
         )
         conn.commit()
     conn.close()
