@@ -35,9 +35,12 @@
             text-align: center;
             border-bottom: 4px solid var(--bm-dourado);
         }
-        .login-header .escudo {
-            font-size: 3.5rem;
-            margin-bottom: 0.5rem;
+        .login-header .brasao {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            margin-bottom: 0.6rem;
+            filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
         }
         .login-header h1 {
             font-size: 1rem;
@@ -102,7 +105,8 @@
 <body>
     <div class="login-card">
         <div class="login-header">
-            <div class="escudo">🛡️</div>
+            <img src="{{ url_for('static', filename='img/brasao_bm.png') }}"
+                 alt="Brasão Brigada Militar" class="brasao">
             <h1>Gestão de Frota</h1>
             <div><small>BRIGADA MILITAR — 46º BPM — BAGÉ/RS</small></div>
         </div>
