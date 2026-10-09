@@ -164,6 +164,44 @@
                             </li>
                         </ul>
                     </div>
+
+                    <!-- Menu do Usuário Logado -->
+                    {% if current_user.is_authenticated %}
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-light dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
+                            <i class="fa-solid fa-user-circle"></i>
+                            <span class="d-none d-lg-inline">{{ current_user.nome_completo.split()[0] }}</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow">
+                            <li>
+                                <span class="dropdown-item-text text-muted small">
+                                    <i class="fa-solid fa-user me-1"></i> {{ current_user.nome_completo }}
+                                    <br><span class="badge bg-{% if current_user.is_admin %}warning text-dark{% else %}secondary{% endif %} mt-1">{{ 'Admin' if current_user.is_admin else 'Operador' }}</span>
+                                </span>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('minha_conta') }}">
+                                    <i class="fa-solid fa-key me-2"></i> Minha Conta
+                                </a>
+                            </li>
+                            {% if current_user.is_admin %}
+                            <li>
+                                <a class="dropdown-item text-warning" href="{{ url_for('admin_usuarios') }}">
+                                    <i class="fa-solid fa-users-gear me-2"></i> Gerenciar Usuários
+                                </a>
+                            </li>
+                            {% endif %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                                    <i class="fa-solid fa-right-from-bracket me-2"></i> Sair
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    {% endif %}
+
                 </div>
             </div>
         </div>

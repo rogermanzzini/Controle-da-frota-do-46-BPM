@@ -7,7 +7,8 @@ import os
 import io
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 
 import database
@@ -25,6 +26,33 @@ app.secret_key = os.environ.get('SECRET_KEY', 'bpm46-bage-segredo-policial-milit
 # Suporte a Proxy Reverso para Produção (Render, Cloudflare, Nginx, Railway)
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# ─────────────────────── FLASK-LOGIN ────────────────────────────────────────
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Faça login para acessar o sistema.'
+login_manager.login_message_category = 'warning'
+
+
+class Usuario(UserMixin):
+    """Classe de usuário para o Flask-Login."""
+    def __init__(self, data: dict):
+        self.id = str(data['id'])
+        self.username = data['username']
+        self.nome_completo = data['nome_completo']
+        self.papel = data['papel']
+
+    @property
+    def is_admin(self):
+        return self.papel == 'admin'
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    data = database.usuario_get_by_id(int(user_id))
+    return Usuario(data) if data else None
+
+# ────────────────────────────────────────────────────────────────────────────
 
 # Configuração de pastas de upload e relatórios
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -108,13 +136,141 @@ def inject_global_data():
     }
 
 
+# ═══════════════════════════ AUTENTICAÇÃO ════════════════════════════════════
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Tela de login do sistema."""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip().lower()
+        senha = request.form.get('senha', '')
+        usuario_data = database.usuario_verificar_senha(username, senha)
+        if usuario_data:
+            user_obj = Usuario(usuario_data)
+            login_user(user_obj, remember=True)
+            database.usuario_atualizar_ultimo_acesso(usuario_data['id'])
+            next_page = request.args.get('next')
+            flash(f'Bem-vindo, {usuario_data["nome_completo"]}!', 'success')
+            return redirect(next_page or url_for('dashboard'))
+        else:
+            flash('Usuário ou senha incorretos.', 'danger')
+    return render_template('login.html')
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    """Encerra a sessão do usuário."""
+    logout_user()
+    flash('Você saiu do sistema.', 'info')
+    return redirect(url_for('login'))
+
+
+@app.route('/admin/usuarios')
+@login_required
+def admin_usuarios():
+    """Tela de administração de usuários (apenas admins)."""
+    if not current_user.is_admin:
+        flash('Acesso restrito a administradores.', 'danger')
+        return redirect(url_for('dashboard'))
+    usuarios = database.usuarios_listar()
+    return render_template('admin_usuarios.html', usuarios=usuarios)
+
+
+@app.route('/admin/usuarios/criar', methods=['POST'])
+@login_required
+def admin_criar_usuario():
+    """Cria um novo usuário."""
+    if not current_user.is_admin:
+        return jsonify({'erro': 'Acesso negado'}), 403
+    username = request.form.get('username', '').strip().lower()
+    nome_completo = request.form.get('nome_completo', '').strip()
+    senha = request.form.get('senha', '')
+    papel = request.form.get('papel', 'operador')
+    if not username or not nome_completo or not senha:
+        flash('Preencha todos os campos obrigatórios.', 'danger')
+        return redirect(url_for('admin_usuarios'))
+    if len(senha) < 6:
+        flash('A senha deve ter pelo menos 6 caracteres.', 'danger')
+        return redirect(url_for('admin_usuarios'))
+    ok = database.usuario_criar(username, nome_completo, senha, papel)
+    if ok:
+        flash(f'Usuário "{username}" criado com sucesso!', 'success')
+    else:
+        flash(f'Usuário "{username}" já existe.', 'danger')
+    return redirect(url_for('admin_usuarios'))
+
+
+@app.route('/admin/usuarios/editar/<int:user_id>', methods=['POST'])
+@login_required
+def admin_editar_usuario(user_id):
+    """Edita dados de um usuário."""
+    if not current_user.is_admin:
+        return jsonify({'erro': 'Acesso negado'}), 403
+    nome_completo = request.form.get('nome_completo', '').strip()
+    papel = request.form.get('papel', 'operador')
+    senha = request.form.get('senha', '').strip() or None
+    if senha and len(senha) < 6:
+        flash('A nova senha deve ter pelo menos 6 caracteres.', 'danger')
+        return redirect(url_for('admin_usuarios'))
+    database.usuario_atualizar(user_id, nome_completo, papel, senha)
+    flash('Usuário atualizado com sucesso!', 'success')
+    return redirect(url_for('admin_usuarios'))
+
+
+@app.route('/admin/usuarios/excluir/<int:user_id>', methods=['POST'])
+@login_required
+def admin_excluir_usuario(user_id):
+    """Desativa um usuário."""
+    if not current_user.is_admin:
+        return jsonify({'erro': 'Acesso negado'}), 403
+    if int(user_id) == int(current_user.id):
+        flash('Você não pode excluir seu próprio usuário.', 'danger')
+        return redirect(url_for('admin_usuarios'))
+    if database.usuarios_contar_admins() <= 1:
+        u = database.usuario_get_by_id(user_id)
+        if u and u.get('papel') == 'admin':
+            flash('Não é possível remover o único administrador do sistema.', 'danger')
+            return redirect(url_for('admin_usuarios'))
+    database.usuario_excluir(user_id)
+    flash('Usuário removido com sucesso.', 'success')
+    return redirect(url_for('admin_usuarios'))
+
+
+@app.route('/minha-conta', methods=['GET', 'POST'])
+@login_required
+def minha_conta():
+    """Página para o usuário alterar sua própria senha."""
+    if request.method == 'POST':
+        senha_atual = request.form.get('senha_atual', '')
+        nova_senha = request.form.get('nova_senha', '')
+        confirmar = request.form.get('confirmar_senha', '')
+        ok = database.usuario_verificar_senha(current_user.username, senha_atual)
+        if not ok:
+            flash('Senha atual incorreta.', 'danger')
+        elif nova_senha != confirmar:
+            flash('A nova senha e a confirmação não coincidem.', 'danger')
+        elif len(nova_senha) < 6:
+            flash('A nova senha deve ter pelo menos 6 caracteres.', 'danger')
+        else:
+            database.usuario_atualizar(int(current_user.id), current_user.nome_completo, current_user.papel, nova_senha)
+            flash('Senha alterada com sucesso!', 'success')
+    return render_template('minha_conta.html')
+
+# ═════════════════════════════════════════════════════════════════════════════
+
+
 @app.route('/combustiveis')
+@login_required
 def modulo_combustiveis():
     """Redireciona para o painel principal do módulo de Combustíveis."""
     return redirect(url_for('dashboard'))
 
 
 @app.route('/')
+@login_required
 def dashboard():
     """Painel principal com KPIs, gráficos de consumo e resumo da frota."""
     stats = database.obter_estatisticas_gerais()
@@ -136,6 +292,7 @@ def dashboard():
 
 
 @app.route('/upload')
+@login_required
 def upload_page():
     """Página de upload das planilhas Excel (Geral do RS e Viaturas do 46º BPM)."""
     viaturas_cadastradas = database.obter_veiculos_alvo()
@@ -143,6 +300,7 @@ def upload_page():
 
 
 @app.route('/processar', methods=['POST'])
+@login_required
 def processar_arquivos():
     """Processa as planilhas enviadas com Pandas e salva resultados no SQLite."""
     arquivo_rs = request.files.get('arquivo_rs')
@@ -230,6 +388,7 @@ def processar_arquivos():
 
 
 @app.route('/relatorio')
+@login_required
 def relatorio():
     """Tabela detalhada de consumo por viatura com filtros e histórico de abastecimentos."""
     resumo_viaturas = database.obter_resumo_por_viatura()
@@ -247,6 +406,7 @@ def relatorio():
 
 
 @app.route('/viatura/<identificador>')
+@login_required
 def viatura_detalhe(identificador):
     """Ficha analítica de uma viatura específica com histórico cronológico e gráficos."""
     abastecimentos = database.obter_abastecimentos_viatura(identificador)
@@ -274,6 +434,7 @@ def viatura_detalhe(identificador):
 
 
 @app.route('/viaturas')
+@login_required
 def listar_viaturas():
     """Gestão da frota monitorada do 46º BPM cadastrada no SQLite."""
     viaturas = database.obter_veiculos_alvo()
@@ -281,6 +442,7 @@ def listar_viaturas():
 
 
 @app.route('/viatura/adicionar', methods=['POST'])
+@login_required
 def adicionar_viatura():
     """Cadastra manualmente uma viatura na frota oficial do 46º BPM e cria sua pasta digital."""
     placa = request.form.get('placa', '').strip().upper()
@@ -318,6 +480,7 @@ def adicionar_viatura():
 
 
 @app.route('/upload-placas', methods=['POST'])
+@login_required
 def upload_placas():
     """Importa viaturas/placas a partir de planilha Excel ou de texto colado."""
     arquivo_placas = request.files.get('arquivo_placas')
@@ -346,6 +509,7 @@ def upload_placas():
 
 
 @app.route('/exportar-excel')
+@login_required
 def exportar_excel():
     """Gera e faz o download do relatório Excel formatado (.xlsx) em tempo real via openpyxl."""
     stats = database.obter_estatisticas_gerais()
@@ -373,6 +537,7 @@ def exportar_excel():
 
 
 @app.route('/carregar-dados-demonstracao', methods=['POST'])
+@login_required
 def carregar_dados_demonstracao():
     """Gera planilhas de exemplo realistas e carrega no banco em 1 clique."""
     try:
@@ -398,6 +563,7 @@ def carregar_dados_demonstracao():
 
 
 @app.route('/baixar-exemplo/<tipo>')
+@login_required
 def baixar_exemplo(tipo):
     """Permite ao usuário baixar os modelos de planilha Excel para preenchimento."""
     caminho_rs = os.path.join(EXEMPLOS_FOLDER, 'abastecimentos_rs_geral_exemplo.xlsx')
@@ -421,6 +587,7 @@ def baixar_exemplo(tipo):
 
 
 @app.route('/limpar-dados', methods=['POST'])
+@login_required
 def limpar_dados():
     """Limpa todas as tabelas de abastecimentos do banco de dados SQLite."""
     database.limpar_todos_os_dados()
@@ -430,6 +597,7 @@ def limpar_dados():
 
 # Rota para gerar PDF filtrado por viaturas selecionadas
 @app.route('/relatorio/pdf', methods=['POST'])
+@login_required
 def gerar_relatorio_pdf():
     """Gera um PDF contendo apenas os abastecimentos das viaturas selecionadas (por placa ou prefixo)."""
     raw_veiculos = request.form.getlist('veiculos') or request.form.getlist('prefixos') or request.form.getlist('placas')
@@ -477,6 +645,7 @@ def gerar_relatorio_pdf():
 # Rota para gerar o ATESTADO DE COMBUSTÍVEIS oficial em PDF
 @app.route('/atestado/pdf', methods=['GET', 'POST'])
 @app.route('/relatorio/atestado-pdf', methods=['GET', 'POST'])
+@login_required
 def gerar_atestado_pdf_route():
     """Gera o documento oficial ATESTADO DE COMBUSTÍVEIS em PDF com valor total por extenso e quinzena."""
     abastecimentos = database.obter_todos_abastecimentos(limit=50000)
@@ -535,6 +704,7 @@ def gerar_atestado_pdf_route():
 
 
 @app.route('/api/atestado/texto-padrao')
+@login_required
 def api_texto_padrao_atestado():
     """Retorna o texto oficial padrão do Atestado de Combustíveis em formato JSON."""
     from services.atestado_generator import gerar_texto_padrao_atestado
@@ -544,6 +714,7 @@ def api_texto_padrao_atestado():
 
 # Rota para configurar as assinaturas padrão do Atestado
 @app.route('/configuracoes/atestado', methods=['POST'])
+@login_required
 def salvar_config_atestado():
     """Salva os dados de assinatura padrão do Atestado de Combustíveis."""
     from services.report_config import set_atestado_config
@@ -565,6 +736,7 @@ def salvar_config_atestado():
 
 # Rota para configurar e salvar a assinatura padrão do sistema
 @app.route('/configuracoes/assinatura', methods=['POST'])
+@login_required
 def salvar_config_assinatura():
     """Salva os dados de assinatura padrão no report_config.json."""
     nome = request.form.get('nome', '').strip()
@@ -582,6 +754,7 @@ def salvar_config_assinatura():
 
 # Nova rota para remover todas as viaturas cadastradas
 @app.route('/viaturas/remover', methods=['POST'])
+@login_required
 def remover_veiculos():
     """Remove todas as viaturas da tabela veiculos_alvo."""
     database.remover_todas_veiculos_alvo()
@@ -648,6 +821,7 @@ def salvar_arquivo_na_pasta_viatura(
 
 
 @app.route('/manutencao/config/assinatura', methods=['POST'])
+@login_required
 def salvar_config_atestador_route():
     """Salva a configuração do militar atestador padrão do módulo de Manutenção."""
     from services.report_config import set_atestador_recebimento_config
@@ -666,6 +840,7 @@ def salvar_config_atestador_route():
 
 
 @app.route('/manutencao')
+@login_required
 def modulo_manutencao():
     """Painel do Módulo de Gestão de Manutenção de Viaturas, Pastas e Equipamentos."""
     filtro_status = request.args.get('status', 'Todos')
@@ -690,6 +865,7 @@ def modulo_manutencao():
 
 
 @app.route('/api/manutencao/extrair-dados-nota', methods=['POST'])
+@login_required
 def extrair_dados_nota_fiscal():
     """
     Extrai razão social, CNPJ, número da nota e valor total do emitente
@@ -954,6 +1130,7 @@ def extrair_dados_nota_fiscal():
 
 
 @app.route('/manutencao/arquivo/upload', methods=['POST'])
+@login_required
 def upload_arquivo_viatura_route():
     """Faz upload de arquivo avulso (OS, DANFE, NFS-e ou Outro) na pasta da viatura."""
     viatura_prefixo = request.form.get('viatura_prefixo', '').strip().upper()
@@ -981,6 +1158,7 @@ def upload_arquivo_viatura_route():
 
 
 @app.route('/manutencao/arquivo/download/<int:doc_id>')
+@login_required
 def download_arquivo_viatura_route(doc_id):
     """Envia o arquivo da pasta da viatura para visualização ou download."""
     doc = database.obter_documento_por_id(doc_id)
@@ -1001,6 +1179,7 @@ def download_arquivo_viatura_route(doc_id):
 
 
 @app.route('/manutencao/arquivo/excluir/<int:doc_id>', methods=['POST'])
+@login_required
 def excluir_arquivo_viatura_route(doc_id):
     """Exclui um documento anexado da viatura do disco e do banco."""
     caminho_rel = database.excluir_documento_viatura(doc_id)
@@ -1016,6 +1195,7 @@ def excluir_arquivo_viatura_route(doc_id):
 
 
 @app.route('/manutencao/atestado/gerar', methods=['POST'])
+@login_required
 def gerar_atestado_recebimento_route():
     """
     Gera o ATESTADO DE RECEBIMENTO DE MATERIAL/SERVIÇO oficial em PDF,
@@ -1154,6 +1334,7 @@ def gerar_atestado_recebimento_route():
 
 
 @app.route('/api/manutencao/atestado/texto-preview', methods=['POST', 'GET'])
+@login_required
 def api_texto_preview_recebimento():
     """Retorna o texto padrão dinamicamente calculado para o Atestado de Recebimento."""
     from services.atestado_recebimento_generator import gerar_texto_padrao_recebimento
@@ -1163,6 +1344,7 @@ def api_texto_preview_recebimento():
 
 
 @app.route('/api/manutencao/viatura-info/<viatura_prefixo>')
+@login_required
 def api_viatura_info(viatura_prefixo):
     """Retorna informações de marca, modelo, placa e cidade de carga de uma viatura cadastrada."""
     viaturas = database.obter_veiculos_alvo()
@@ -1199,6 +1381,7 @@ def api_viatura_info(viatura_prefixo):
 
 
 @app.route('/api/manutencao/viatura-arquivos/<viatura_prefixo>')
+@login_required
 def api_viatura_arquivos(viatura_prefixo):
     """Retorna a listagem de arquivos anexados na pasta da viatura."""
     arquivos = database.obter_arquivos_viatura(viatura_prefixo)
@@ -1206,6 +1389,7 @@ def api_viatura_arquivos(viatura_prefixo):
 
 
 @app.route('/manutencao/salvar', methods=['POST'])
+@login_required
 def salvar_manutencao_route():
     """Cadastra ou atualiza uma Ordem de Serviço / Manutenção."""
     dados = {
@@ -1236,6 +1420,7 @@ def salvar_manutencao_route():
 
 
 @app.route('/manutencao/excluir/<int:manutencao_id>', methods=['POST'])
+@login_required
 def excluir_manutencao_route(manutencao_id):
     """Exclui um registro de manutenção."""
     database.excluir_manutencao(manutencao_id)
@@ -1244,6 +1429,7 @@ def excluir_manutencao_route(manutencao_id):
 
 
 @app.route('/equipamento/salvar', methods=['POST'])
+@login_required
 def salvar_equipamento_route():
     """Cadastra ou atualiza um equipamento patrimoniado."""
     dados = {
@@ -1270,6 +1456,7 @@ def salvar_equipamento_route():
 
 
 @app.route('/equipamento/excluir/<int:eq_id>', methods=['POST'])
+@login_required
 def excluir_equipamento_route(eq_id):
     """Exclui um equipamento pelo ID."""
     database.excluir_equipamento(eq_id)
@@ -1282,6 +1469,7 @@ def excluir_equipamento_route(eq_id):
 # ==============================================================================
 
 @app.route('/pneus')
+@login_required
 def modulo_pneus():
     """Painel do Módulo de Gestão e Controle de Pneus da Frota."""
     filtro_status = request.args.get('status', 'Todos')
@@ -1302,6 +1490,7 @@ def modulo_pneus():
 
 
 @app.route('/pneus/salvar', methods=['POST'])
+@login_required
 def salvar_pneu_route():
     """Cadastra ou atualiza um pneu."""
     dados = {
@@ -1331,6 +1520,7 @@ def salvar_pneu_route():
 
 
 @app.route('/pneus/medicao', methods=['POST'])
+@login_required
 def medicao_pneu_route():
     """Registra uma medição de sulco ou rodízio de pneu."""
     pneu_id = request.form.get('pneu_id')
@@ -1356,6 +1546,7 @@ def medicao_pneu_route():
 
 
 @app.route('/pneus/excluir/<int:pneu_id>', methods=['POST'])
+@login_required
 def excluir_pneu_route(pneu_id):
     """Exclui um pneu pelo ID."""
     database.excluir_pneu(pneu_id)

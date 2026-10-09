@@ -243,6 +243,20 @@ def init_db():
         )
     ''')
 
+    # Tabela de Usuários do sistema
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            nome_completo TEXT NOT NULL,
+            senha_hash TEXT NOT NULL,
+            papel TEXT DEFAULT 'operador',
+            ativo INTEGER DEFAULT 1,
+            data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            ultimo_acesso TIMESTAMP
+        )
+    ''')
+
     # Índices para consultas rápidas
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_abast_placa ON abastecimentos(placa)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_abast_prefixo ON abastecimentos(prefixo)')
@@ -259,9 +273,142 @@ def init_db():
     # Inicializar dados padrão se necessário
     popular_dados_iniciais_manutencao_pneus()
     popular_viaturas_padrao_46bpm()
+    _criar_admin_padrao()
+
+
+# ─────────────────────────── GESTÃO DE USUÁRIOS ────────────────────────────
+
+def _criar_admin_padrao():
+    """Cria o usuário admin padrão se não existir nenhum usuário no banco."""
+    import hashlib
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) as total FROM usuarios")
+    total = cursor.fetchone()['total']
+    if total == 0:
+        senha_hash = hashlib.sha256('admin123'.encode()).hexdigest()
+        cursor.execute(
+            "INSERT INTO usuarios (username, nome_completo, senha_hash, papel) VALUES (?, ?, ?, ?)",
+            ('admin', 'Administrador', senha_hash, 'admin')
+        )
+        conn.commit()
+    conn.close()
+
+
+def usuario_get_by_username(username: str) -> Optional[Dict[str, Any]]:
+    """Retorna um usuário pelo username, ou None se não encontrado."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    row = cursor.execute(
+        "SELECT * FROM usuarios WHERE username = ? AND ativo = 1", (username,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def usuario_get_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+    """Retorna um usuário pelo ID."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    row = cursor.execute("SELECT * FROM usuarios WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def usuario_verificar_senha(username: str, senha: str) -> Optional[Dict[str, Any]]:
+    """Verifica credenciais. Retorna o usuário se correto, None caso contrário."""
+    import hashlib
+    senha_hash = hashlib.sha256(senha.encode()).hexdigest()
+    conn = get_connection()
+    cursor = conn.cursor()
+    row = cursor.execute(
+        "SELECT * FROM usuarios WHERE username = ? AND senha_hash = ? AND ativo = 1",
+        (username, senha_hash)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def usuario_atualizar_ultimo_acesso(user_id: int):
+    """Atualiza o campo ultimo_acesso do usuário."""
+    from datetime import datetime
+    conn = get_connection()
+    conn.execute(
+        "UPDATE usuarios SET ultimo_acesso = ? WHERE id = ?",
+        (datetime.now().isoformat(), user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def usuario_criar(username: str, nome_completo: str, senha: str, papel: str = 'operador') -> bool:
+    """Cria um novo usuário. Retorna True se sucesso, False se username já existe."""
+    import hashlib
+    senha_hash = hashlib.sha256(senha.encode()).hexdigest()
+    try:
+        conn = get_connection()
+        conn.execute(
+            "INSERT INTO usuarios (username, nome_completo, senha_hash, papel) VALUES (?, ?, ?, ?)",
+            (username.strip().lower(), nome_completo.strip(), senha_hash, papel)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+
+def usuario_atualizar(user_id: int, nome_completo: str, papel: str, senha: str = None) -> bool:
+    """Atualiza dados de um usuário. Se senha fornecida, atualiza o hash."""
+    import hashlib
+    conn = get_connection()
+    if senha:
+        senha_hash = hashlib.sha256(senha.encode()).hexdigest()
+        conn.execute(
+            "UPDATE usuarios SET nome_completo = ?, papel = ?, senha_hash = ? WHERE id = ?",
+            (nome_completo, papel, senha_hash, user_id)
+        )
+    else:
+        conn.execute(
+            "UPDATE usuarios SET nome_completo = ?, papel = ? WHERE id = ?",
+            (nome_completo, papel, user_id)
+        )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def usuario_excluir(user_id: int) -> bool:
+    """Desativa (soft delete) um usuário. Não exclui fisicamente."""
+    conn = get_connection()
+    conn.execute("UPDATE usuarios SET ativo = 0 WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def usuarios_listar() -> List[Dict[str, Any]]:
+    """Retorna lista de todos os usuários ativos."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT id, username, nome_completo, papel, ativo, data_cadastro, ultimo_acesso FROM usuarios ORDER BY nome_completo"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def usuarios_contar_admins() -> int:
+    """Conta quantos admins ativos existem (para impedir remoção do último admin)."""
+    conn = get_connection()
+    total = conn.execute(
+        "SELECT COUNT(*) as t FROM usuarios WHERE papel = 'admin' AND ativo = 1"
+    ).fetchone()['t']
+    conn.close()
+    return total
 
 
 def salvar_veiculos_alvo(lista_veiculos: List[Dict[str, Any]]) -> int:
+
     """
     Insere ou atualiza viaturas na tabela veiculos_alvo.
     lista_veiculos: lista de dicts com 'placa', 'prefixo', 'modelo', 'fracao', 'tipo_combustivel'

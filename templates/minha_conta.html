@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Minha Conta — 46º BPM{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 500px;">
+    <div class="card bg-dark border-secondary shadow">
+        <div class="card-header border-secondary bg-black">
+            <h5 class="mb-0 text-warning">
+                <i class="fa-solid fa-key me-2"></i> Minha Conta
+            </h5>
+        </div>
+        <div class="card-body p-4">
+            <div class="mb-4 text-center">
+                <div class="display-4 mb-2">👤</div>
+                <h6 class="text-light mb-0">{{ current_user.nome_completo }}</h6>
+                <small class="text-muted">@{{ current_user.username }}</small>
+                <br>
+                <span class="badge bg-{% if current_user.is_admin %}warning text-dark{% else %}secondary{% endif %} mt-2">
+                    {{ 'Administrador' if current_user.is_admin else 'Operador' }}
+                </span>
+            </div>
+
+            <hr class="border-secondary">
+
+            <h6 class="text-muted mb-3">Alterar Senha</h6>
+            <form method="POST" action="{{ url_for('minha_conta') }}">
+                <div class="mb-3">
+                    <label class="form-label text-light">Senha Atual <span class="text-danger">*</span></label>
+                    <input type="password" name="senha_atual" class="form-control bg-dark text-light border-secondary"
+                           placeholder="••••••••" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-light">Nova Senha <span class="text-danger">*</span></label>
+                    <input type="password" name="nova_senha" class="form-control bg-dark text-light border-secondary"
+                           placeholder="Mínimo 6 caracteres" minlength="6" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label text-light">Confirmar Nova Senha <span class="text-danger">*</span></label>
+                    <input type="password" name="confirmar_senha" class="form-control bg-dark text-light border-secondary"
+                           placeholder="Repita a nova senha" minlength="6" required>
+                </div>
+                <button type="submit" class="btn btn-warning text-dark w-100 fw-semibold">
+                    <i class="fa-solid fa-lock me-2"></i> Alterar Senha
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="text-center mt-3">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fa-solid fa-arrow-left me-1"></i> Voltar ao sistema
+        </a>
+    </div>
+</div>
+{% endblock %}
