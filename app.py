@@ -1081,7 +1081,8 @@ def extrair_dados_nota_fiscal():
                     termos_descarte = [
                         'PRESTADOR DE SERVIÇOS', 'PRESTADOR DE SERVICOS', 'CNPJ', 'CPF', 'INSCRIÇÃO', 'INSCRICAO',
                         'ENDEREÇO', 'ENDERECO', 'AVENIDA', 'AVE ', 'RUA ', 'CEP', 'TELEFONE', 'FONE', 'MUNICÍPIO',
-                        'MUNICIPIO', 'ESTADO', 'NOME/RAZÃO SOCIAL:', 'NOME/RAZAO SOCIAL:', 'RAZÃO SOCIAL:', 'RAZAO SOCIAL:'
+                        'MUNICIPIO', 'ESTADO', 'NOME/RAZÃO SOCIAL:', 'NOME/RAZAO SOCIAL:', 'RAZÃO SOCIAL:', 'RAZAO SOCIAL:',
+                        'RAZÃO SOCIAL', 'RAZAO SOCIAL', 'NOME FANTASIA', 'NOME EMPRESARIAL'
                     ]
                     for j in range(idx_p + 1, idx_t):
                         cand = linhas_pdf[j].strip()
@@ -1098,12 +1099,31 @@ def extrair_dados_nota_fiscal():
                                 empresa_nome = cand
                                 break
 
-                # B) Número da NFS-e:
-                # 1. Prioridade máxima: número localizado fisicamente acima do QR Code
-                if qr_candidate_number:
+                # B) Número da NFS-e (ampla cobertura: Chave de Acesso Nacional de 50 dígitos, quebra em duas linhas, QR Code e tabelas)
+                # 1. Chave de Acesso da NFS-e Nacional (50 dígitos) -> O número oficial de 13 dígitos fica exatamente após o CNPJ (posições 24 a 36)
+                m_chave = re.search(r'Chave\s+de\s+Acesso(?:[^\d\n]*):?\s*(\d{50})', texto_pdf, re.IGNORECASE)
+                if not m_chave:
+                    m_chave = re.search(r'\b(43\d{48}|\d{50})\b', texto_pdf)
+                if m_chave:
+                    chave_str = m_chave.group(1).strip()
+                    cnpj_digits = re.sub(r'\D', '', empresa_cnpj)
+                    if cnpj_digits and cnpj_digits in chave_str:
+                        idx_c = chave_str.find(cnpj_digits) + len(cnpj_digits)
+                        numero_nota = chave_str[idx_c:idx_c+13]
+                    elif len(chave_str) == 50:
+                        numero_nota = chave_str[23:36]
+
+                # 2. Número quebrado em duas linhas acima do QR Code (ex: Nota: 202600 \n 0000075)
+                if not numero_nota:
+                    m_wrap = re.search(r'Nota:?\s*(20\d{4})\s*\n?\s*(\d{7})\b', texto_pdf, re.IGNORECASE)
+                    if m_wrap:
+                        numero_nota = f"{m_wrap.group(1)}{m_wrap.group(2)}"
+
+                # 3. Número localizado fisicamente acima do QR Code
+                if not numero_nota and qr_candidate_number:
                     numero_nota = qr_candidate_number
 
-                # 2. Prioridade 2: busca em tabelas estruturadas
+                # 4. Busca em tabelas estruturadas
                 if not numero_nota and tables_pdf:
                     for t in tables_pdf:
                         for row in t:
@@ -1118,11 +1138,14 @@ def extrair_dados_nota_fiscal():
                                 if numero_nota: break
                             if numero_nota: break
 
-                # 3. Prioridade 3: busca no texto EXCLUINDO linhas de endereço (evita capturar número predial como 1151)
+                # 5. Busca no texto EXCLUINDO linhas de endereço e secretarias (evita capturar número predial como 1151)
                 if not numero_nota:
                     linhas_sem_endereco = [
                         l for l in linhas_pdf
-                        if not any(t in l.upper() for t in ['ENDEREÇO', 'ENDERECO', 'RUA ', 'AVENIDA', 'AVE ', 'BAIRRO', 'CEP', 'LOGRADOURO', 'MUNICÍPIO', 'MUNICIPIO'])
+                        if not any(t in l.upper() for t in [
+                            'ENDEREÇO', 'ENDERECO', 'RUA ', 'AVENIDA', 'AVE ', 'BAIRRO', 'CEP', 'LOGRADOURO',
+                            'SECRETARIA', 'SEFAZ', 'SETOR DE FISCALIZAÇÃO', 'SETOR DE FISCALIZACAO', 'CENTRO'
+                        ])
                     ]
                     texto_sem_end = "\n".join(linhas_sem_endereco)
                     padroes_num_nfse = [
@@ -1158,22 +1181,38 @@ def extrair_dados_nota_fiscal():
                     ano = m_ano.group(1) if m_ano else datetime.now().strftime('%Y')
                     numero_nota = f"{ano}{int(numero_nota):09d}"
 
-                # C) Valor da NFS-e (ampla cobertura de descrições líquidas e brutas, aceitando :, =, -, –, espaços ou quebras)
-                padroes_val_nfse = [
-                    r'(?:Valor\s+L[ií]quido(?:\s+da\s+(?:Nota|NFS-?e)(?:\s+Fiscal)?)?|VALOR\s+L[IÍ]QUIDO(?:\s+DA\s+(?:NOTA|NFS-?E)(?:\s+FISCAL)?)?)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+Total(?:\s+da\s+(?:Nota|NFS-?e)(?:\s+Fiscal)?)?|VALOR\s+TOTAL(?:\s+DA\s+(?:NOTA|NFS-?E)(?:\s+FISCAL)?)?)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+Total\s+dos\s+Servi[çc]os|VALOR\s+TOTAL\s+DOS\s+SERVI[ÇC]OS|Valor\s+dos\s+Servi[çc]os|VALOR\s+DOS\s+SERVI[ÇC]OS|Valor\s+do\s+Servi[çc]o|VALOR\s+DO\s+SERVI[ÇC]O)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Total\s+dos\s+Servi[çc]os|TOTAL\s+DOS\s+SERVI[ÇC]OS|Total\s+da\s+Nota|TOTAL\s+DA\s+NOTA|Total\s+a\s+Pagar|TOTAL\s+A\s+PAGAR)[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:VALOR\s+SERVI[ÇC]O|VALOR\s+SERVI[ÇC]OS|VALOR\s+L[IÍ]QUIDO|VALOR\s+TOTAL)[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Base\s+de\s+C[aá]lculo|BASE\s+DE\s+C[AÁ]LCULO)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})'
-                ]
-                for p in padroes_val_nfse:
-                    m = re.search(p, texto_pdf, re.IGNORECASE)
-                    if m:
-                        valor_total = m.group(1).strip()
-                        break
+                # C) Valor da NFS-e:
+                # 1. Tabela com 'Valor Total da Nota (R$)' ou 'Valor Líquido (R$)' seguido de linha com valores
+                m_tbl_val = re.search(r'Valor\s+Total\s+da\s+Nota[^\n]*\n([^\n]+)', texto_pdf, re.IGNORECASE)
+                if m_tbl_val:
+                    vals = re.findall(r'\b\d{1,3}(?:\.\d{3})*,\d{2}\b', m_tbl_val.group(1))
+                    if vals:
+                        valor_total = vals[-1]
 
-                # Fallback: se não encontrou pelo rótulo, procura qualquer valor R$ no documento (pegando o último R$ válido diferente de 0,00)
+                if not valor_total:
+                    m_tbl_liq = re.search(r'Valor\s+L[ií]quido[^\n]*\n([^\n]+)', texto_pdf, re.IGNORECASE)
+                    if m_tbl_liq:
+                        vals = re.findall(r'\b\d{1,3}(?:\.\d{3})*,\d{2}\b', m_tbl_liq.group(1))
+                        if vals:
+                            valor_total = vals[-1]
+
+                # 2. Padrões diretos com separadores :, =, -, –, espaços ou quebras
+                if not valor_total:
+                    padroes_val_nfse = [
+                        r'(?:Valor\s+L[ií]quido(?:\s+da\s+(?:Nota|NFS-?e)(?:\s+Fiscal)?)?|VALOR\s+L[IÍ]QUIDO(?:\s+DA\s+(?:NOTA|NFS-?E)(?:\s+FISCAL)?)?)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
+                        r'(?:Valor\s+Total(?:\s+da\s+(?:Nota|NFS-?e)(?:\s+Fiscal)?)?|VALOR\s+TOTAL(?:\s+DA\s+(?:NOTA|NFS-?E)(?:\s+FISCAL)?)?)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
+                        r'(?:Valor\s+Total\s+dos\s+Servi[çc]os|VALOR\s+TOTAL\s+DOS\s+SERVI[ÇC]OS|Valor\s+dos\s+Servi[çc]os|VALOR\s+DOS\s+SERVI[ÇC]OS|Valor\s+do\s+Servi[çc]o|VALOR\s+DO\s+SERVI[ÇC]O)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
+                        r'(?:Total\s+dos\s+Servi[çc]os|TOTAL\s+DOS\s+SERVI[ÇC]OS|Total\s+da\s+Nota|TOTAL\s+DA\s+NOTA|Total\s+a\s+Pagar|TOTAL\s+A\s+PAGAR)[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
+                        r'(?:VALOR\s+SERVI[ÇC]O|VALOR\s+SERVI[ÇC]OS|VALOR\s+L[IÍ]QUIDO|VALOR\s+TOTAL)[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
+                        r'(?:Base\s+de\s+C[aá]lculo|BASE\s+DE\s+C[AÁ]LCULO)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})'
+                    ]
+                    for p in padroes_val_nfse:
+                        m = re.search(p, texto_pdf, re.IGNORECASE)
+                        if m:
+                            valor_total = m.group(1).strip()
+                            break
+
+                # 3. Fallback: último valor R$ válido no documento
                 if not valor_total:
                     valores_rs = re.findall(r'R\$\s*([\d\.]+,\d{2})', texto_pdf)
                     if valores_rs:
