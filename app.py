@@ -990,11 +990,49 @@ def extrair_dados_nota_fiscal():
 
             texto_pdf = ''
             linhas_pdf = []
+            tables_pdf = []
+            qr_candidate_number = ''
             with pdfplumber.open(tmp_path) as pdf:
-                for page in pdf.pages:
+                for i_p, page in enumerate(pdf.pages):
                     texto_pagina = page.extract_text() or ''
                     texto_pdf += texto_pagina + '\n'
                     linhas_pdf.extend([l.strip() for l in texto_pagina.split('\n') if l.strip()])
+                    try:
+                        tables_pdf.extend(page.extract_tables() or [])
+                    except Exception:
+                        pass
+
+                    # Na página inicial, detecta o QR Code e inspeciona palavras situadas diretamente acima dele
+                    if i_p == 0 and not qr_candidate_number:
+                        for img in page.images:
+                            w = img.get('width', 0)
+                            h = img.get('height', 0)
+                            if 35 <= w <= 180 and abs(w - h) <= 15:
+                                qr_top = img.get('top', 0)
+                                qr_x0 = img.get('x0', 0)
+                                qr_x1 = qr_x0 + w
+                                words = page.extract_words()
+                                words_above = [
+                                    wd for wd in words
+                                    if (qr_top - 120 <= wd['top'] <= qr_top + 5) and
+                                       (qr_x0 - 60 <= wd['x0'] <= qr_x1 + 120)
+                                ]
+                                words_above = sorted(words_above, key=lambda x: (round(x['top'] / 4), x['x0']))
+                                texto_above = " ".join(wd['text'] for wd in words_above)
+
+                                m_above = re.search(r'(?:N[ºo°\.]*(?:\s+da\s+Nota)?|Nota)?[:\s]*(\d{4}[\/\.\-]?\d{9}|\d{1,13})\b', texto_above, re.IGNORECASE)
+                                if m_above:
+                                    c = m_above.group(1).strip()
+                                    if c and not (len(c) == 4 and c.startswith('20')):
+                                        qr_candidate_number = c
+                                        break
+                                cands_d = [
+                                    wd['text'].strip() for wd in words_above
+                                    if wd['text'].strip().isdigit() and not (len(wd['text'].strip()) == 4 and wd['text'].strip().startswith('20'))
+                                ]
+                                if cands_d:
+                                    qr_candidate_number = cands_d[0]
+                                    break
             try:
                 os.unlink(tmp_path)
             except Exception:
@@ -1060,39 +1098,50 @@ def extrair_dados_nota_fiscal():
                                 empresa_nome = cand
                                 break
 
-                # B) Número da NFS-e (ampla cobertura de padrões municipais e nacionais com suporte a até 13 dígitos)
-                padroes_num_nfse = [
-                    r'(?:N[úu]mero\s+da\s+NFS-?e|NFS-?e\s*N[ºo°\.]*|NFSe\s*N[ºo°\.]*)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
-                    r'(?:N[úu]mero\s+da\s+Nota\s+Fiscal(?:\s+Eletr[ôo]nica)?|N[ºo°\.]*\s+da\s+Nota\s+Fiscal(?:\s+Eletr[ôo]nica)?)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
-                    r'(?:N[úu]mero\s+da\s+Nota|N[ºo°\.]*\s+da\s+Nota|N[ºo°\.]*\s+da\s+NFS-?e)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
-                    r'(?:Nota\s+Fiscal\s+de\s+Servi[çc]os\s+Eletr[ôo]nica|NFS-?e)[\s\-–]+N[ºo°\.]*[:\s]*(\d{4}[\/\.\-]?\d{9}|\d+)',
-                    r'Nota\s+Fiscal\s+n[ºo°\.]*[:\s]*(\d{4}[\/\.\-]?\d{9}|\d+)',
-                    r'N[ºo°\.]\s*da\s+Nota[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
-                    r'NFS-?e\s*[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
-                    r'NFSe\s*[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
-                    r'Nota\s+Fiscal[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
-                    r'N[úu]mero\s+do\s+Documento[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
-                    r'(?:N[úu]mero|N[ºo°\.]*)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d{1,15})\b'
-                ]
-                for p in padroes_num_nfse:
-                    m = re.search(p, texto_pdf, re.IGNORECASE)
-                    if m:
-                        cand = m.group(1).strip()
-                        if cand and not (len(cand) == 4 and cand.startswith('20')):
-                            numero_nota = cand
-                            break
-                        elif not numero_nota:
-                            numero_nota = cand
+                # B) Número da NFS-e:
+                # 1. Prioridade máxima: número localizado fisicamente acima do QR Code
+                if qr_candidate_number:
+                    numero_nota = qr_candidate_number
 
-                # Se ainda não encontrou, busca 13 dígitos característicos de NFS-e municipal (ex: AAAA + 9 dígitos)
+                # 2. Prioridade 2: busca em tabelas estruturadas
+                if not numero_nota and tables_pdf:
+                    for t in tables_pdf:
+                        for row in t:
+                            for cell in row:
+                                if cell and re.search(r'(?:N[úu]mero\s+da\s+Nota|N[ºo°\.]*\s+da\s+Nota|NFS-?e\s*N[ºo°\.]*)', str(cell), re.IGNORECASE):
+                                    m_cell = re.search(r'[:\s]+(\d{4}[\/\.\-]?\d{9}|\d{1,13})\b', str(cell))
+                                    if m_cell:
+                                        c = m_cell.group(1).strip()
+                                        if c and not (len(c) == 4 and c.startswith('20')):
+                                            numero_nota = c
+                                            break
+                                if numero_nota: break
+                            if numero_nota: break
+
+                # 3. Prioridade 3: busca no texto EXCLUINDO linhas de endereço (evita capturar número predial como 1151)
                 if not numero_nota:
-                    m13 = re.search(r'\b(20\d{11}|\d{13})\b', texto_pdf)
-                    if m13:
-                        numero_nota = m13.group(1).strip()
-                    else:
-                        m13_fmt = re.search(r'\b(20\d{2}[\/\.\-]\d{9})\b', texto_pdf)
-                        if m13_fmt:
-                            numero_nota = m13_fmt.group(1).strip()
+                    linhas_sem_endereco = [
+                        l for l in linhas_pdf
+                        if not any(t in l.upper() for t in ['ENDEREÇO', 'ENDERECO', 'RUA ', 'AVENIDA', 'AVE ', 'BAIRRO', 'CEP', 'LOGRADOURO', 'MUNICÍPIO', 'MUNICIPIO'])
+                    ]
+                    texto_sem_end = "\n".join(linhas_sem_endereco)
+                    padroes_num_nfse = [
+                        r'(?:N[úu]mero\s+da\s+NFS-?e|NFS-?e\s*N[ºo°\.]*|NFSe\s*N[ºo°\.]*)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                        r'(?:N[úu]mero\s+da\s+Nota\s+Fiscal(?:\s+Eletr[ôo]nica)?|N[ºo°\.]*\s+da\s+Nota\s+Fiscal(?:\s+Eletr[ôo]nica)?)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                        r'(?:N[úu]mero\s+da\s+Nota|N[ºo°\.]*\s+da\s+Nota|N[ºo°\.]*\s+da\s+NFS-?e)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                        r'(?:Nota\s+Fiscal\s+de\s+Servi[çc]os\s+Eletr[ôo]nica|NFS-?e)[\s\-–]+N[ºo°\.]*[:\s]*(\d{4}[\/\.\-]?\d{9}|\d+)',
+                        r'Nota\s+Fiscal\s+n[ºo°\.]*[:\s]*(\d{4}[\/\.\-]?\d{9}|\d+)',
+                        r'N[ºo°\.]\s*da\s+Nota[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                        r'NFS-?e\s*[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                        r'NFSe\s*[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)'
+                    ]
+                    for p in padroes_num_nfse:
+                        m = re.search(p, texto_sem_end, re.IGNORECASE)
+                        if m:
+                            c = m.group(1).strip()
+                            if c and not (len(c) == 4 and c.startswith('20')):
+                                numero_nota = c
+                                break
 
                 # Normalização: se veio com separadores (2026/000000662 -> 2026000000662)
                 if numero_nota and re.match(r'^\d{4}[\/\.\-]\d{9}$', numero_nota):
@@ -1109,26 +1158,27 @@ def extrair_dados_nota_fiscal():
                     ano = m_ano.group(1) if m_ano else datetime.now().strftime('%Y')
                     numero_nota = f"{ano}{int(numero_nota):09d}"
 
-                # C) Valor da NFS-e (ampla cobertura de descrições líquidas e brutas)
+                # C) Valor da NFS-e (ampla cobertura de descrições líquidas e brutas, aceitando :, =, -, –, espaços ou quebras)
                 padroes_val_nfse = [
-                    r'(?:Valor\s+L[ií]quido\s+da\s+Nota\s+Fiscal|Valor\s+L[ií]quido\s+da\s+NFS-?e)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+L[ií]quido\s+da\s+Nota|VALOR\s+L[IÍ]QUIDO\s+DA\s+NOTA)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+L[ií]quido|VALOR\s+L[IÍ]QUIDO)(?:\s*\(R\$\))?[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+Total\s+dos\s+Servi[çc]os|VALOR\s+TOTAL\s+DOS\s+SERVI[ÇC]OS)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+dos\s+Servi[çc]os|VALOR\s+SERVI[ÇC]OS)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+do\s+Servi[çc]o|VALOR\s+SERVI[ÇC]O)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Total\s+dos\s+Servi[çc]os|TOTAL\s+SERVI[ÇC]OS)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+Total\s+da\s+Nota|VALOR\s+TOTAL\s+DA\s+NOTA|VALOR\s+TOTAL\s+DA\s+NFS-?E)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+da\s+Nota|VALOR\s+DA\s+NOTA)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+L[ií]quido\s+a\s+Pagar|VALOR\s+A\s+PAGAR|Total\s+a\s+Pagar)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Total\s+da\s+Nota|TOTAL\s+DA\s+NOTA)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
-                    r'(?:Valor\s+Total|VALOR\s+TOTAL)[:\s]*R?\$?\s*([\d\.]+,\d{2})'
+                    r'(?:Valor\s+L[ií]quido(?:\s+da\s+(?:Nota|NFS-?e)(?:\s+Fiscal)?)?|VALOR\s+L[IÍ]QUIDO(?:\s+DA\s+(?:NOTA|NFS-?E)(?:\s+FISCAL)?)?)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+Total(?:\s+da\s+(?:Nota|NFS-?e)(?:\s+Fiscal)?)?|VALOR\s+TOTAL(?:\s+DA\s+(?:NOTA|NFS-?E)(?:\s+FISCAL)?)?)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+Total\s+dos\s+Servi[çc]os|VALOR\s+TOTAL\s+DOS\s+SERVI[ÇC]OS|Valor\s+dos\s+Servi[çc]os|VALOR\s+DOS\s+SERVI[ÇC]OS|Valor\s+do\s+Servi[çc]o|VALOR\s+DO\s+SERVI[ÇC]O)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Total\s+dos\s+Servi[çc]os|TOTAL\s+DOS\s+SERVI[ÇC]OS|Total\s+da\s+Nota|TOTAL\s+DA\s+NOTA|Total\s+a\s+Pagar|TOTAL\s+A\s+PAGAR)[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:VALOR\s+SERVI[ÇC]O|VALOR\s+SERVI[ÇC]OS|VALOR\s+L[IÍ]QUIDO|VALOR\s+TOTAL)[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Base\s+de\s+C[aá]lculo|BASE\s+DE\s+C[AÁ]LCULO)(?:\s*\([^\)]*\))?[\s:=–\-]*R?\$?\s*([\d\.]+,\d{2})'
                 ]
                 for p in padroes_val_nfse:
                     m = re.search(p, texto_pdf, re.IGNORECASE)
                     if m:
                         valor_total = m.group(1).strip()
                         break
+
+                # Fallback: se não encontrou pelo rótulo, procura qualquer valor R$ no documento (pegando o último R$ válido diferente de 0,00)
+                if not valor_total:
+                    valores_rs = re.findall(r'R\$\s*([\d\.]+,\d{2})', texto_pdf)
+                    if valores_rs:
+                        validos = [v for v in valores_rs if v != '0,00']
+                        valor_total = validos[-1] if validos else valores_rs[0]
 
             # ── 3. EXTRAÇÃO ESPECÍFICA DANFE (MATERIAL) ──────────────────────────
             elif is_danfe:
