@@ -32,7 +32,7 @@ from reportlab.platypus import (
 from services.atestado_generator import valor_monetario_extenso, MESES_PT
 
 
-def formatar_data_militar(dt: Optional[datetime | str] = None) -> str:
+def formatar_data_militar(dt: Optional[datetime | str] = None, cidade: Optional[str] = None) -> str:
     """Formata a data no padrão militar tradicional (ex: Quartel em Bagé, RS, 1º de outubro de 2026)."""
     if dt is None:
         dt = datetime.now()
@@ -44,7 +44,8 @@ def formatar_data_militar(dt: Optional[datetime | str] = None) -> str:
 
     dia_str = "1º" if dt.day == 1 else f"{dt.day:02d}"
     mes_str = MESES_PT.get(dt.month, 'janeiro')
-    return f"Quartel em Bagé, RS, {dia_str} de {mes_str} de {dt.year}."
+    local = f"Quartel em {cidade.strip()}, " if cidade and cidade.strip() else "Quartel, "
+    return f"{local}{dia_str} de {mes_str} de {dt.year}."
 
 
 def gerar_texto_padrao_recebimento(dados: Dict[str, Any]) -> str:
@@ -263,8 +264,9 @@ def gerar_atestado_recebimento_pdf(
 
     elementos.append(Spacer(1, 8 * mm))
 
-    # 5. Data Militar
-    data_str = formatar_data_militar(dados.get('data_servico') or dados.get('data_geracao'))
+    # 5. Data Militar — usa a cidade da viatura dinamicamente
+    cidade_doc = str(dados.get('cidade_carga') or '').strip()
+    data_str = formatar_data_militar(dados.get('data_servico') or dados.get('data_geracao'), cidade=cidade_doc)
     elementos.append(Paragraph(data_str, style_data))
 
     # 6. Bloco de Assinatura do Militar Responsável (Espaço de 24mm para GOV.BR)
@@ -281,9 +283,10 @@ def gerar_atestado_recebimento_pdf(
 
     # 7. Bloco de Rodapé Oficial (Endereço, Brasão BM e Banner Social)
     bloco_endereco = [
-        Paragraph("Rua Cândido Portinari, 310, Floresta – Bagé", style_endereco),
+        Paragraph("Brigada Militar – CRPMFO / 46º BPM", style_endereco),
         Paragraph("Fone: (53) 3240 3400", style_endereco)
     ]
+
 
     bloco_brasao_bm = []
     if img_brasao_bm.exists():
