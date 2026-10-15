@@ -118,31 +118,76 @@ def detectar_colunas(df: pd.DataFrame) -> Dict[str, str]:
     return colunas_encontradas
 
 
+def _extensao_arquivo(caminho_ou_arquivo) -> str:
+    """Retorna a extensão do arquivo em minúsculas, tratando strings e objetos de arquivo."""
+    if isinstance(caminho_ou_arquivo, str):
+        return os.path.splitext(caminho_ou_arquivo.lower())[1]
+    nome = getattr(caminho_ou_arquivo, 'filename', '') or getattr(caminho_ou_arquivo, 'name', '')
+    return os.path.splitext(str(nome).lower())[1]
+
+
 def carregar_planilha_excel(caminho_ou_arquivo) -> pd.DataFrame:
     """
-    Lê com extrema robustez arquivos Excel (.xlsx, .xls) ou arquivos exportados
-    por sistemas de frotas estaduais (que muitas vezes são HTML, XML ou CSV renomeados para .xls).
+    Lê com extrema robustez planilhas em TODAS as versões Excel e formatos similares:
+      .xlsx  — Excel 2007+ (OpenXML)        → openpyxl
+      .xlsm  — Excel com macros (OpenXML)   → openpyxl
+      .xls   — Excel 97-2003                → xlrd
+      .xlsb  — Excel Binário                → pyxlsb (se instalado)
+      .ods   — LibreOffice / Google Sheets  → odf (se instalado)
+      .csv / .tsv — Texto delimitado
+      Arquivos HTML/XML renomeados como .xls (exportação de sistemas estaduais)
     """
-    # 1. Tentar xlrd se for .xls
-    if isinstance(caminho_ou_arquivo, str) and caminho_ou_arquivo.lower().endswith('.xls'):
+    ext = _extensao_arquivo(caminho_ou_arquivo)
+
+    # ── 1. Excel Binário (.xlsb) ────────────────────────────────────────────
+    if ext == '.xlsb':
+        try:
+            return pd.read_excel(caminho_ou_arquivo, engine='pyxlsb')
+        except Exception:
+            pass  # fallback abaixo
+
+    # ── 2. ODS / LibreOffice (.ods) ─────────────────────────────────────────
+    if ext == '.ods':
+        try:
+            return pd.read_excel(caminho_ou_arquivo, engine='odf')
+        except Exception:
+            pass  # fallback abaixo
+
+    # ── 3. CSV / TSV ────────────────────────────────────────────────────────
+    if ext in ('.csv', '.tsv', '.txt'):
+        sep = '\t' if ext == '.tsv' else None  # None = autodetect pelo Python engine
+        for enc in ['utf-8-sig', 'latin1', 'cp1252', 'utf-8']:
+            try:
+                return pd.read_csv(caminho_ou_arquivo, sep=sep, engine='python', encoding=enc)
+            except Exception:
+                continue
+
+    # ── 4. Excel legado .xls (Excel 97-2003) ────────────────────────────────
+    if ext == '.xls':
         try:
             return pd.read_excel(caminho_ou_arquivo, engine='xlrd')
         except Exception:
-            pass
+            pass  # pode ser HTML renomeado — cai nos fallbacks
 
-    # 2. Tentar openpyxl
+    # ── 5. Excel moderno .xlsx / .xlsm e qualquer outro ────────────────────
     try:
         return pd.read_excel(caminho_ou_arquivo, engine='openpyxl')
     except Exception:
         pass
 
-    # 3. Tentar xlrd como fallback
+    # ── 6. Tentar xlrd como fallback geral ──────────────────────────────────
     try:
         return pd.read_excel(caminho_ou_arquivo, engine='xlrd')
     except Exception:
         pass
 
-    # 4. Tentar ler como tabela HTML (muito comum em sistemas estaduais que exportam HTML renomeado para .xls)
+    # ── 7. Tentar pyxlsb como fallback (arquivo .xlsb sem extensão correta) ─
+    try:
+        return pd.read_excel(caminho_ou_arquivo, engine='pyxlsb')
+    except Exception:
+        pass
+
+    # ── 8. Tabela HTML (sistemas estaduais exportam HTML renomeado para .xls) ─
     try:
         dfs = pd.read_html(caminho_ou_arquivo)
         if dfs:
@@ -153,14 +198,14 @@ def carregar_planilha_excel(caminho_ou_arquivo) -> pd.DataFrame:
     except Exception:
         pass
 
-    # 5. Tentar ler como CSV delimitado com codificação comum em sistemas brasileiros
+    # ── 9. CSV/TSV como último recurso (arquivo sem extensão reconhecível) ──
     for enc in ['utf-8-sig', 'latin1', 'cp1252', 'utf-8']:
         try:
             return pd.read_csv(caminho_ou_arquivo, sep=None, engine='python', encoding=enc)
         except Exception:
             continue
 
-    # 6. Última tentativa com pd.read_excel padrão
+    # ── 10. Tentativa final com pd.read_excel sem engine forçado ────────────
     return pd.read_excel(caminho_ou_arquivo)
 
 

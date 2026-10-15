@@ -25,7 +25,8 @@
                 <div class="card card-tactical shadow-sm">
                     <div class="card-header bg-transparent border-tactical py-3">
                         <span class="fw-bold text-white fs-5">
-                            <i class="fa-solid fa-file-excel text-success me-2"></i> Seleção dos Arquivos Excel (.xlsx / .xls)
+                            <i class="fa-solid fa-file-excel text-success me-2"></i> Seleção dos Arquivos de Planilha
+                            <small class="text-secondary fw-normal ms-2" style="font-size: 0.78rem;">.xlsx · .xls · .xlsm · .xlsb · .ods · .csv · .tsv</small>
                         </span>
                     </div>
                     <div class="card-body p-4">
@@ -44,8 +45,8 @@
                                         <i class="fa-solid fa-file-excel text-info fs-3"></i>
                                     </div>
                                     <h6 class="text-white mb-1" id="rs_title">Clique ou arraste o arquivo do RS aqui</h6>
-                                    <small class="text-muted d-block" id="rs_desc">Planilha (.xlsx ou .xls) com abastecimentos de todo o estado</small>
-                                    <input type="file" name="arquivo_rs" id="arquivo_rs" class="d-none" accept=".xlsx, .xls" required onchange="handleFileSelect(this, 'rs_title', 'rs_desc', 'dropzone_rs')">
+                                    <small class="text-muted d-block" id="rs_desc">Aceita .xlsx, .xls, .xlsm, .xlsb, .ods, .csv ou .tsv</small>
+                                    <input type="file" name="arquivo_rs" id="arquivo_rs" class="d-none" accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.tsv,.txt" required onchange="handleFileSelect(this, 'rs_title', 'rs_desc', 'dropzone_rs')">
                                 </div>
                             </div>
 
@@ -84,8 +85,8 @@
                                             <i class="fa-solid fa-car-side text-warning fs-3"></i>
                                         </div>
                                         <h6 class="text-white mb-1" id="alvo_title">Clique ou arraste a planilha com as placas</h6>
-                                        <small class="text-muted d-block" id="alvo_desc">Planilha (.xlsx ou .xls) com a lista de placas das viaturas</small>
-                                        <input type="file" name="arquivo_alvo" id="arquivo_alvo" class="d-none" accept=".xlsx, .xls" onchange="handleFileSelect(this, 'alvo_title', 'alvo_desc', 'dropzone_alvo')">
+                                        <small class="text-muted d-block" id="alvo_desc">Aceita .xlsx, .xls, .xlsm, .xlsb, .ods, .csv ou .tsv</small>
+                                        <input type="file" name="arquivo_alvo" id="arquivo_alvo" class="d-none" accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.tsv,.txt" onchange="handleFileSelect(this, 'alvo_title', 'alvo_desc', 'dropzone_alvo')">
                                     </div>
                                 </div>
 

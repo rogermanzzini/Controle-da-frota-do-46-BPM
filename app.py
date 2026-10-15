@@ -5,6 +5,7 @@ Backend em Python + Flask com rotas para upload, processamento, relatórios e ex
 
 import os
 import io
+import re
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
@@ -312,7 +313,7 @@ def processar_arquivos():
     usar_viaturas_cadastradas = request.form.get('usar_viaturas_cadastradas') == '1'
 
     if not arquivo_rs or arquivo_rs.filename == '':
-        flash('Por favor, selecione a planilha geral de abastecimentos do RS (.xlsx ou .xls).', 'danger')
+        flash('Por favor, selecione a planilha de abastecimentos do RS (.xlsx, .xls, .xlsm, .xlsb, .ods, .csv, .tsv).', 'danger')
         return redirect(url_for('upload_page'))
 
     nome_rs = secure_filename(arquivo_rs.filename)
@@ -1209,131 +1210,149 @@ def gerar_atestado_recebimento_route():
         flash('Por favor, informe a viatura.', 'warning')
         return redirect(url_for('modulo_manutencao'))
 
-    # Coleta os dados do formulário
-    tipo_doc_fiscal = request.form.get('tipo_documento_fiscal', 'nfse').strip().lower()
-    
-    val_danfe_str = request.form.get('valor_danfe', '0').strip().replace('.', '').replace(',', '.')
-    val_nfse_str = request.form.get('valor_nfse', '0').strip().replace('.', '').replace(',', '.')
-    val_danfe = float(val_danfe_str) if val_danfe_str else 0.0
-    val_nfse = float(val_nfse_str) if val_nfse_str else 0.0
-    val_total = val_danfe + val_nfse
+    def _converter_valor(v_raw):
+        if not v_raw:
+            return 0.0
+        s = str(v_raw).strip().replace('R$', '').replace('r$', '').replace(' ', '')
+        if not s:
+            return 0.0
+        if ',' in s and '.' in s:
+            if s.rfind(',') > s.rfind('.'):
+                s = s.replace('.', '').replace(',', '.')
+            else:
+                s = s.replace(',', '')
+        elif ',' in s:
+            s = s.replace(',', '.')
+        try:
+            return float(s)
+        except (ValueError, TypeError):
+            return 0.0
 
-    dados = {
-        'tipo_documento_fiscal': tipo_doc_fiscal,
-        'viatura_prefixo': viatura_prefixo,
-        'viatura_marca': request.form.get('viatura_marca', '').strip(),
-        'viatura_modelo': request.form.get('viatura_modelo', '').strip(),
-        'viatura_placa': request.form.get('viatura_placa', '').strip().upper(),
-        'cidade_carga': request.form.get('cidade_carga', 'Bagé').strip(),
-        'numero_danfe': request.form.get('numero_danfe', '').strip(),
-        'valor_danfe': val_danfe,
-        'numero_nfse': request.form.get('numero_nfse', '').strip(),
-        'valor_nfse': val_nfse,
-        'empresa_nome': request.form.get('empresa_nome', '').strip(),
-        'empresa_cnpj': request.form.get('empresa_cnpj', '').strip(),
-        'data_servico': request.form.get('data_servico', datetime.now().strftime('%Y-%m-%d')).strip(),
-        'descricao_servico': request.form.get('descricao_servico', '').strip() or f"Manutenção e conservação da viatura BM {viatura_prefixo}",
-        'pecas': request.form.get('pecas', '').strip(),
-        'valor_total': val_total,
-        'status': 'Concluída',
-        'data_conclusao': request.form.get('data_servico', datetime.now().strftime('%Y-%m-%d')).strip(),
-        'responsavel_nome': request.form.get('responsavel_nome', 'JULIANO INOCENTE VELEDA').strip().upper(),
-        'responsavel_grad': request.form.get('responsavel_grad', 'Sd PM').strip(),
-        'responsavel_id_func': request.form.get('responsavel_id_func', '3155358').strip(),
-        'responsavel_cargo': request.form.get('responsavel_cargo', 'Aux P4/46º BPM').strip(),
-        'observacoes': request.form.get('observacoes', '').strip()
-    }
+    try:
+        tipo_doc_fiscal = request.form.get('tipo_documento_fiscal', 'nfse').strip().lower()
+        val_danfe = _converter_valor(request.form.get('valor_danfe', '0'))
+        val_nfse = _converter_valor(request.form.get('valor_nfse', '0'))
+        val_total = val_danfe + val_nfse
 
-    # 1. Se solicitado pelo usuário, atualiza a assinatura padrão do atestador
-    if request.form.get('salvar_como_padrao_atestador') == '1':
-        from services.report_config import set_atestador_recebimento_config
-        set_atestador_recebimento_config(
-            nome=dados['responsavel_nome'],
-            graduacao=dados['responsavel_grad'],
-            id_func=dados['responsavel_id_func'],
-            cargo=dados['responsavel_cargo']
+        dados = {
+            'tipo_documento_fiscal': tipo_doc_fiscal,
+            'viatura_prefixo': viatura_prefixo,
+            'viatura_marca': request.form.get('viatura_marca', '').strip(),
+            'viatura_modelo': request.form.get('viatura_modelo', '').strip(),
+            'viatura_placa': request.form.get('viatura_placa', '').strip().upper(),
+            'cidade_carga': request.form.get('cidade_carga', 'Bagé').strip(),
+            'numero_danfe': request.form.get('numero_danfe', '').strip(),
+            'valor_danfe': val_danfe,
+            'numero_nfse': request.form.get('numero_nfse', '').strip(),
+            'valor_nfse': val_nfse,
+            'empresa_nome': request.form.get('empresa_nome', '').strip(),
+            'empresa_cnpj': request.form.get('empresa_cnpj', '').strip(),
+            'data_servico': request.form.get('data_servico', datetime.now().strftime('%Y-%m-%d')).strip(),
+            'descricao_servico': request.form.get('descricao_servico', '').strip() or f"Manutenção e conservação da viatura BM {viatura_prefixo}",
+            'pecas': request.form.get('pecas', '').strip(),
+            'valor_total': val_total,
+            'status': 'Concluída',
+            'data_conclusao': request.form.get('data_servico', datetime.now().strftime('%Y-%m-%d')).strip(),
+            'responsavel_nome': request.form.get('responsavel_nome', 'JULIANO INOCENTE VELEDA').strip().upper(),
+            'responsavel_grad': request.form.get('responsavel_grad', 'Sd PM').strip(),
+            'responsavel_id_func': request.form.get('responsavel_id_func', '3155358').strip(),
+            'responsavel_cargo': request.form.get('responsavel_cargo', 'Aux P4/46º BPM').strip(),
+            'observacoes': request.form.get('observacoes', '').strip()
+        }
+
+        # 1. Se solicitado pelo usuário, atualiza a assinatura padrão do atestador
+        if request.form.get('salvar_como_padrao_atestador') == '1':
+            from services.report_config import set_atestador_recebimento_config
+            set_atestador_recebimento_config(
+                nome=dados['responsavel_nome'],
+                graduacao=dados['responsavel_grad'],
+                id_func=dados['responsavel_id_func'],
+                cargo=dados['responsavel_cargo']
+            )
+
+        # 1b. Se solicitado, salva empresa e CNPJ como padrão para futuros atestados
+        if request.form.get('salvar_empresa_padrao') == '1':
+            from services.report_config import set_empresa_config
+            set_empresa_config(
+                nome=dados['empresa_nome'],
+                cnpj=dados['empresa_cnpj']
+            )
+
+        # 2. Subpasta física da Ordem de Serviço Ticket Log (8 algarismos)
+        num_os_raw = request.form.get('numero_os', '').strip()
+        num_os_digitos = re.sub(r'\D', '', num_os_raw)
+        if len(num_os_digitos) == 8:
+            nome_subpasta_os = num_os_digitos
+        elif num_os_digitos:
+            nome_subpasta_os = num_os_digitos
+        elif num_os_raw:
+            nome_subpasta_os = secure_filename(num_os_raw)
+        else:
+            num_referencia = dados.get('numero_nfse') or dados.get('numero_danfe') or f"OS{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            nome_subpasta_os = "".join(c for c in str(num_referencia) if c.isalnum() or c in ('-', '_'))
+
+        dados['numero_os'] = nome_subpasta_os
+
+        # Salva a Manutenção no SQLite
+        manutencao_id = database.salvar_manutencao(dados)
+
+        pasta_viatura_abs = os.path.join(PASTAS_VIATURAS_FOLDER, secure_filename(viatura_prefixo))
+        pasta_os_abs = os.path.join(pasta_viatura_abs, nome_subpasta_os)
+        os.makedirs(pasta_os_abs, exist_ok=True)
+
+        # 4. Upload e armazenamento dos arquivos físicos na subpasta da OS da viatura
+        arq_os = request.files.get('arquivo_os')
+        if arq_os and arq_os.filename != '':
+            salvar_arquivo_na_pasta_viatura(arq_os, viatura_prefixo, 'OS', descricao='Ordem de Serviço anexada', manutencao_id=manutencao_id, pasta_os=nome_subpasta_os)
+
+        arq_danfe = request.files.get('arquivo_danfe')
+        if arq_danfe and arq_danfe.filename != '':
+            salvar_arquivo_na_pasta_viatura(arq_danfe, viatura_prefixo, 'DANFE', descricao=f"DANFE nº {dados['numero_danfe']}", manutencao_id=manutencao_id, pasta_os=nome_subpasta_os)
+
+        arq_nfse = request.files.get('arquivo_nfse')
+        if arq_nfse and arq_nfse.filename != '':
+            salvar_arquivo_na_pasta_viatura(arq_nfse, viatura_prefixo, 'NFSE', descricao=f"NFS-e nº {dados['numero_nfse']}", manutencao_id=manutencao_id, pasta_os=nome_subpasta_os)
+
+        # 5. Geração do PDF do Atestado de Recebimento dentro da subpasta da OS
+        from services.atestado_recebimento_generator import gerar_atestado_recebimento_pdf
+        texto_personalizado = request.form.get('texto_atestado', '').strip() or None
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        nome_pdf_atestado = f"ATESTADO_RECEBIMENTO_{viatura_prefixo}_{timestamp}.pdf"
+        caminho_pdf_atestado = os.path.join(pasta_os_abs, nome_pdf_atestado)
+
+        gerar_atestado_recebimento_pdf(caminho_pdf_atestado, dados, texto_personalizado=texto_personalizado)
+
+        # 6. Registra o próprio PDF do Atestado na pasta da viatura e na OS
+        caminho_rel_atestado = os.path.join('uploads', 'manutencao', 'viaturas', secure_filename(viatura_prefixo), nome_subpasta_os, nome_pdf_atestado).replace('\\', '/')
+        database.salvar_documento_viatura(
+            viatura_prefixo=viatura_prefixo,
+            tipo_documento='ATESTADO',
+            nome_original=nome_pdf_atestado,
+            nome_arquivo=nome_pdf_atestado,
+            caminho_relativo=caminho_rel_atestado,
+            tamanho_bytes=os.path.getsize(caminho_pdf_atestado),
+            descricao=f"Atestado de Recebimento gerado para a viatura BM {viatura_prefixo} ({nome_subpasta_os})",
+            manutencao_id=manutencao_id,
+            pasta_os=nome_subpasta_os
         )
 
-    # 1b. Se solicitado, salva empresa e CNPJ como padrão para futuros atestados
-    if request.form.get('salvar_empresa_padrao') == '1':
-        from services.report_config import set_empresa_config
-        set_empresa_config(
-            nome=dados['empresa_nome'],
-            cnpj=dados['empresa_cnpj']
+        # Atualiza o registro da manutenção com o caminho do atestado
+        database.atualizar_atestado_manutencao(manutencao_id, caminho_rel_atestado)
+
+        flash(f"Atestado de Recebimento gerado com sucesso para a viatura BM {viatura_prefixo}!", "success")
+        return send_file(
+            caminho_pdf_atestado,
+            as_attachment=True,
+            download_name=f"Atestado_Recebimento_{viatura_prefixo}_{dados['tipo_documento_fiscal'].upper()}.pdf",
+            mimetype='application/pdf'
         )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        flash(f"Erro ao emitir atestado de recebimento: {str(e)}", "danger")
+        return redirect(url_for('modulo_manutencao'))
 
-    # 2. Subpasta física da Ordem de Serviço Ticket Log (8 algarismos)
-    num_os_raw = request.form.get('numero_os', '').strip()
-    num_os_digitos = re.sub(r'\D', '', num_os_raw)
-    if len(num_os_digitos) == 8:
-        nome_subpasta_os = num_os_digitos
-    elif num_os_digitos:
-        nome_subpasta_os = num_os_digitos
-    elif num_os_raw:
-        nome_subpasta_os = secure_filename(num_os_raw)
-    else:
-        num_referencia = dados.get('numero_nfse') or dados.get('numero_danfe') or f"OS{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        nome_subpasta_os = "".join(c for c in str(num_referencia) if c.isalnum() or c in ('-', '_'))
-
-    dados['numero_os'] = nome_subpasta_os
-
-    # Salva a Manutenção no SQLite
-    manutencao_id = database.salvar_manutencao(dados)
-
-    pasta_viatura_abs = os.path.join(PASTAS_VIATURAS_FOLDER, secure_filename(viatura_prefixo))
-    pasta_os_abs = os.path.join(pasta_viatura_abs, nome_subpasta_os)
-    os.makedirs(pasta_os_abs, exist_ok=True)
-
-    # 4. Upload e armazenamento dos arquivos físicos na subpasta da OS da viatura
-    # Ordem de Serviço
-    arq_os = request.files.get('arquivo_os')
-    if arq_os and arq_os.filename != '':
-        salvar_arquivo_na_pasta_viatura(arq_os, viatura_prefixo, 'OS', descricao='Ordem de Serviço anexada', manutencao_id=manutencao_id, pasta_os=nome_subpasta_os)
-
-    # Nota Fiscal de Material (DANFE)
-    arq_danfe = request.files.get('arquivo_danfe')
-    if arq_danfe and arq_danfe.filename != '':
-        salvar_arquivo_na_pasta_viatura(arq_danfe, viatura_prefixo, 'DANFE', descricao=f"DANFE nº {dados['numero_danfe']}", manutencao_id=manutencao_id, pasta_os=nome_subpasta_os)
-
-    # Nota Fiscal de Serviços (NFS-e)
-    arq_nfse = request.files.get('arquivo_nfse')
-    if arq_nfse and arq_nfse.filename != '':
-        salvar_arquivo_na_pasta_viatura(arq_nfse, viatura_prefixo, 'NFSE', descricao=f"NFS-e nº {dados['numero_nfse']}", manutencao_id=manutencao_id, pasta_os=nome_subpasta_os)
-
-    # 5. Geração do PDF do Atestado de Recebimento dentro da subpasta da OS
-    from services.atestado_recebimento_generator import gerar_atestado_recebimento_pdf
-    texto_personalizado = request.form.get('texto_atestado', '').strip() or None
-
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    nome_pdf_atestado = f"ATESTADO_RECEBIMENTO_{viatura_prefixo}_{timestamp}.pdf"
-    caminho_pdf_atestado = os.path.join(pasta_os_abs, nome_pdf_atestado)
-
-    gerar_atestado_recebimento_pdf(caminho_pdf_atestado, dados, texto_personalizado=texto_personalizado)
-
-    # 6. Registra o próprio PDF do Atestado na pasta da viatura e na OS
-    caminho_rel_atestado = os.path.join('uploads', 'manutencao', 'viaturas', secure_filename(viatura_prefixo), nome_subpasta_os, nome_pdf_atestado).replace('\\', '/')
-    database.salvar_documento_viatura(
-        viatura_prefixo=viatura_prefixo,
-        tipo_documento='ATESTADO',
-        nome_original=nome_pdf_atestado,
-        nome_arquivo=nome_pdf_atestado,
-        caminho_relativo=caminho_rel_atestado,
-        tamanho_bytes=os.path.getsize(caminho_pdf_atestado),
-        descricao=f"Atestado de Recebimento gerado para a viatura BM {viatura_prefixo} ({nome_subpasta_os})",
-        manutencao_id=manutencao_id,
-        pasta_os=nome_subpasta_os
-    )
-
-    # Atualiza o registro da manutenção com o caminho do atestado
-    database.atualizar_atestado_manutencao(manutencao_id, caminho_rel_atestado)
-
-    flash(f"Atestado de Recebimento gerado com sucesso para a viatura BM {viatura_prefixo}!", "success")
-    return send_file(
-        caminho_pdf_atestado,
-        as_attachment=True,
-        download_name=f"Atestado_Recebimento_{viatura_prefixo}_{dados['tipo_documento_fiscal'].upper()}.pdf",
-        mimetype='application/pdf'
-    )
 
 
 @app.route('/api/manutencao/atestado/texto-preview', methods=['POST', 'GET'])

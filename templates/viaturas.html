@@ -166,7 +166,7 @@
                     <!-- Opção 1: Arquivo Excel -->
                     <div class="mb-4">
                         <label class="form-label text-white fw-bold">
-                            <i class="fa-solid fa-cloud-arrow-up text-primary me-1"></i> Opção 1: Enviar Planilha Excel (.xlsx / .xls)
+                            <i class="fa-solid fa-cloud-arrow-up text-primary me-1"></i> Opção 1: Enviar Planilha (.xlsx, .xls, .xlsm, .xlsb, .ods, .csv, .tsv)
                         </label>
                         <div class="upload-dropzone p-3 rounded-3 text-center border-dashed" id="modal_dropzone_placas" onclick="document.getElementById('modal_arquivo_placas').click()">
                             <div class="dropzone-icon-box mb-2">
@@ -174,7 +174,7 @@
                             </div>
                             <h6 class="text-white mb-1" id="modal_placas_title">Clique ou arraste a planilha com as placas</h6>
                             <small class="text-muted d-block" id="modal_placas_desc">Pode conter apenas a coluna de placas ou os dados completos</small>
-                            <input type="file" name="arquivo_placas" id="modal_arquivo_placas" class="d-none" accept=".xlsx, .xls" onchange="handleFileSelect(this, 'modal_placas_title', 'modal_placas_desc', 'modal_dropzone_placas')">
+                            <input type="file" name="arquivo_placas" id="modal_arquivo_placas" class="d-none" accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.tsv,.txt" onchange="handleFileSelect(this, 'modal_placas_title', 'modal_placas_desc', 'modal_dropzone_placas')">
                         </div>
                     </div>
 
