@@ -879,6 +879,7 @@ def extrair_dados_nota_fiscal():
     if not arquivo or arquivo.filename == '':
         return jsonify({'erro': 'Nenhum arquivo enviado'}), 400
 
+    tipo_hint = request.form.get('tipo_hint', '').strip().lower()
     nome = arquivo.filename.lower()
     conteudo = arquivo.read()
 
@@ -888,7 +889,7 @@ def extrair_dados_nota_fiscal():
     valor_total = ''
     numero_os = ''
 
-    # ---- Tentativa 1: XML (NFe padrão ou NFS-e) ----
+    # ---- Tentativa 1: XML (NFe padrão ou NFS-e de qualquer prefeitura/provedor) ----
     if nome.endswith('.xml'):
         try:
             import xml.etree.ElementTree as ET
@@ -905,43 +906,59 @@ def extrair_dados_nota_fiscal():
                     next_nodes = []
                     for n in nodes:
                         for child in n.iter():
-                            if _strip_ns(child.tag) == tag:
+                            if _strip_ns(child.tag).lower() == tag.lower():
                                 next_nodes.append(child)
                     nodes = next_nodes
                 return nodes[0].text.strip() if nodes and nodes[0].text else ''
 
-            # --- Emitente (NFe) ---
-            empresa_nome = _find_text(root, 'emit', 'xNome') or _find_text(root, 'xNome')
-            empresa_cnpj = _find_text(root, 'emit', 'CNPJ') or _find_text(root, 'CNPJ')
+            def _find_any(node, tag_list):
+                """Busca qualquer tag da lista no XML inteiro."""
+                for child in node.iter():
+                    if _strip_ns(child.tag).lower() in [t.lower() for t in tag_list]:
+                        if child.text and child.text.strip():
+                            return child.text.strip()
+                return ''
 
+            # --- Emitente / Prestador ---
+            empresa_nome = (
+                _find_text(root, 'PrestadorServico', 'RazaoSocial') or
+                _find_text(root, 'Prestador', 'RazaoSocial') or
+                _find_text(root, 'emit', 'xNome') or
+                _find_any(root, ['RazaoSocial', 'xNome', 'NomeFantasia', 'NomePrestador'])
+            )
+
+            # CNPJ do emitente / prestador
+            empresa_cnpj = (
+                _find_text(root, 'PrestadorServico', 'IdentificacaoPrestador', 'CpfCnpj', 'Cnpj') or
+                _find_text(root, 'Prestador', 'Cnpj') or
+                _find_text(root, 'emit', 'CNPJ') or
+                _find_any(root, ['Cnpj', 'CNPJ'])
+            )
             # Formatar CNPJ se vier sem pontuação (14 dígitos)
             if empresa_cnpj and len(empresa_cnpj) == 14 and empresa_cnpj.isdigit():
                 c = empresa_cnpj
                 empresa_cnpj = f"{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:14]}"
 
-            # --- Número da nota ---
-            # NFe: ide/nNF  |  NFS-e: Numero, NumeroNfse, nNFS
+            # --- Número da nota (NFe e NFS-e de todos os provedores ABRASF / municipais) ---
             numero_nota = (
-                _find_text(root, 'ide', 'nNF') or
-                _find_text(root, 'nNF') or
-                _find_text(root, 'Numero') or
-                _find_text(root, 'NumeroNfse') or
-                _find_text(root, 'nNFS') or
-                _find_text(root, 'NumeroDaNota')
+                _find_any(root, [
+                    'Numero', 'NumeroNfse', 'nNFSe', 'nNFS', 'NumeroNota', 'numNota',
+                    'nNF', 'NumeroDaNota', 'IdentificacaoNfse'
+                ]) or
+                _find_text(root, 'ide', 'nNF')
             )
 
-            # --- Valor total ---
-            # NFe: total/ICMSTot/vNF  |  NFS-e: ValorServicos, ValorLiquidoNfse, vNFS
+            # --- Valor total / Líquido ---
             valor_raw = (
-                _find_text(root, 'ICMSTot', 'vNF') or
-                _find_text(root, 'vNF') or
-                _find_text(root, 'ValorLiquidoNfse') or
-                _find_text(root, 'ValorServicos') or
-                _find_text(root, 'vNFS') or
-                _find_text(root, 'ValorTotal')
+                _find_any(root, [
+                    'ValorLiquidoNfse', 'ValorLiquido', 'ValorServicos', 'ValorServico',
+                    'vServ', 'vLiq', 'vNF', 'ValorTotal', 'TotalServicos', 'ValorTotalServicos',
+                    'vTotal'
+                ]) or
+                _find_text(root, 'ICMSTot', 'vNF')
             )
+
             if valor_raw:
-                # Converte ponto decimal para vírgula (padrão BR)
                 try:
                     v = float(valor_raw.replace(',', '.'))
                     valor_total = f"{v:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
@@ -949,13 +966,12 @@ def extrair_dados_nota_fiscal():
                     valor_total = valor_raw
 
         except Exception as e:
-            return jsonify({'erro': f'Falha ao parsear XML: {str(e)}'}), 422
+            return jsonify({'erro': f'Falha ao processar arquivo XML: {str(e)}'}), 422
 
-    # ---- Tentativa 2: PDF ----
+    # ---- Tentativa 2: PDF (DANFE, NFS-e ou OS) ----
     elif nome.endswith('.pdf'):
         try:
             import pdfplumber
-            import re
             import tempfile
 
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
@@ -968,83 +984,48 @@ def extrair_dados_nota_fiscal():
                 for page in pdf.pages:
                     texto_pagina = page.extract_text() or ''
                     texto_pdf += texto_pagina + '\n'
-                    linhas_pdf.extend(texto_pagina.split('\n'))
+                    linhas_pdf.extend([l.strip() for l in texto_pagina.split('\n') if l.strip()])
             try:
                 os.unlink(tmp_path)
             except Exception:
                 pass
 
+            texto_upper = texto_pdf.upper()
+
             # ── 1. CNPJ DO FORNECEDOR / EMITENTE ─────────────────────────────────
-            # Procura CNPJs no formato com máscara XX.XXX.XXX/XXXX-XX
-            # Trata caso onde hífen quebrou de linha
             texto_cnpj_normalizado = re.sub(r'(\d{2}\.\d{3}\.\d{3}/\d{4}-)\s*\n?\s*(\d{2})', r'\1\2', texto_pdf)
             cnpjs = re.findall(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', texto_cnpj_normalizado)
             if cnpjs:
-                # Descarta o CNPJ do tomador/cliente (Brigada Militar: 89.175.541/0001-64)
                 cnpjs_emitentes = [c for c in cnpjs if not c.startswith('89.175.541')]
                 empresa_cnpj = cnpjs_emitentes[0] if cnpjs_emitentes else cnpjs[0]
 
             # ── DETECÇÃO DO TIPO DE DOCUMENTO ────────────────────────────────────
-            is_danfe = any('DANFE' in l.upper() for l in linhas_pdf[:25]) or 'RECEBEMOS DE' in texto_pdf.upper()
-            is_nfse = any(
-                'PRESTADOR DE SERVIÇ' in l.upper() or 'PRESTADOR DE SERVIC' in l.upper() or
-                'NFS-E' in l.upper() or 'SECRETARIA MUNICIPAL DA FAZENDA' in l.upper() or
-                'NOTA FISCAL DE SERVIÇ' in l.upper()
-                for l in linhas_pdf[:20]
+            # Respeita o tipo_hint enviado pelo frontend (se 'nfse', 'danfe' ou 'os')
+            is_nfse = tipo_hint == 'nfse' or any(
+                termo in texto_upper for termo in [
+                    'NFS-E', 'NFSE', 'NOTA FISCAL DE SERVIÇ', 'NOTA FISCAL DE SERVIC',
+                    'PRESTADOR DE SERVIÇ', 'PRESTADOR DE SERVIC', 'SECRETARIA MUNICIPAL',
+                    'SECRETARIA DA FAZENDA MUNICIPAL', 'TRIBUTAÇÃO MUNICIPAL', 'IMPOSTO SOBRE SERVIÇOS',
+                    'VALOR LÍQUIDO DA NFS-E', 'VALOR LIQUIDO DA NFS-E'
+                ]
             )
 
-            # ── 2. EXTRAÇÃO ESPECÍFICA POR TIPO ──────────────────────────────────
-            if is_danfe:
-                # A) Nome da empresa no DANFE
-                # Canhoto padrão nacional: 'RECEBEMOS DE [EMPRESA] OS PRODUTOS...'
-                m_canhoto = re.search(r'RECEBEMOS\s+DE\s+(.+?)\s+OS\s+PRODUTOS', texto_pdf, re.IGNORECASE)
-                if m_canhoto and len(m_canhoto.group(1).strip()) >= 3:
-                    empresa_nome = m_canhoto.group(1).strip()
-                else:
-                    # Bloco IDENTIFICACAO DO EMITENTE
-                    for i, l in enumerate(linhas_pdf):
-                        if 'IDENTIFICAÇ' in l.upper() and 'EMITENTE' in l.upper():
-                            termos_descarte = [
-                                'DANFE', 'DOCUMENTO AUXILIAR', 'NOTA FISCAL', 'FISCAL ELETRÔNICA', 'FISCAL ELETRONICA',
-                                'CHAVE DE ACESSO', '0 - ENTRADA', '1 - SAÍDA', '1 - SAIDA', 'SÉRIE', 'SERIE', 'FOLHA',
-                                'Nº', 'N.', 'PROTOCOLO', 'CONSULTA', 'WWW.NFE'
-                            ]
-                            for j in range(i + 1, min(i + 12, len(linhas_pdf))):
-                                cand = linhas_pdf[j].strip()
-                                if len(cand) >= 3 and not any(t in cand.upper() for t in termos_descarte) and not re.search(r'^\d[\d\.\-\/]+$', cand):
-                                    empresa_nome = cand
-                                    break
-                            break
+            is_danfe = not is_nfse and (tipo_hint == 'danfe' or any(
+                termo in texto_upper for termo in [
+                    'DANFE', 'DOCUMENTO AUXILIAR DA NOTA FISCAL', 'RECEBEMOS DE'
+                ]
+            ))
 
-                # B) Número da DANFE (formato com 9 algarismos: 000.205.100 ou 9 dígitos seguidos)
-                m_num = re.search(r'N[ºo°\.]+\s*(\d{3}\.\d{3}\.\d{3})\b', texto_pdf)
-                if not m_num:
-                    m_num = re.search(r'\b(\d{3}\.\d{3}\.\d{3})\b', texto_pdf)
-                if not m_num:
-                    m_num = re.search(r'N[ºo°\.]+\s*(\d{9})\b', texto_pdf)
-                if m_num:
-                    numero_nota = m_num.group(1)
-
-                # C) Valor da DANFE
-                m_val = re.search(r'VALOR TOTAL:\s*R\$\s*([\d\.]+,\d{2})', texto_pdf, re.IGNORECASE)
-                if not m_val:
-                    m_val = re.search(r'V\.\s*TOTAL\s+DA\s+NOTA\s*[:\s]*([\d\.]+,\d{2})', texto_pdf, re.IGNORECASE)
-                if not m_val:
-                    m_val = re.search(r'V\.\s*TOTAL\s+PRODUTOS\s*[:\s]*([\d\.]+,\d{2})', texto_pdf, re.IGNORECASE)
-                if not m_val:
-                    m_val = re.search(r'(?:VALOR\s+DA\s+NOTA|TOTAL\s+DA\s+NOTA)\s*[:\s]*R?\$?\s*([\d\.]+,\d{2})', texto_pdf, re.IGNORECASE)
-                if m_val:
-                    valor_total = m_val.group(1)
-
-            elif is_nfse:
-                # A) Nome da empresa na NFS-e
-                # Varre linhas entre 'PRESTADOR DE SERVIÇOS' e 'TOMADOR DE SERVIÇOS'
+            # ── 2. EXTRAÇÃO ESPECÍFICA NFS-e (SERVIÇOS) ──────────────────────────
+            if is_nfse or tipo_hint == 'nfse':
+                # A) Nome da empresa prestadora na NFS-e
                 idx_p = -1
                 idx_t = len(linhas_pdf)
                 for i, l in enumerate(linhas_pdf):
-                    if 'PRESTADOR DE SERVIÇ' in l.upper() or 'PRESTADOR DE SERVIC' in l.upper():
+                    l_up = l.upper()
+                    if 'PRESTADOR DE SERVIÇ' in l_up or 'PRESTADOR DE SERVIC' in l_up or 'DADOS DO PRESTADOR' in l_up:
                         idx_p = i
-                    elif idx_p != -1 and ('TOMADOR DE SERVIÇ' in l.upper() or 'TOMADOR DE SERVIC' in l.upper()):
+                    elif idx_p != -1 and ('TOMADOR DE SERVIÇ' in l_up or 'TOMADOR DE SERVIC' in l_up or 'DADOS DO TOMADOR' in l_up):
                         idx_t = i
                         break
 
@@ -1061,45 +1042,117 @@ def extrair_dados_nota_fiscal():
                             break
 
                 if not empresa_nome:
-                    # Fallback linha com Nome/Razão Social
+                    for l in linhas_pdf:
+                        m_emp = re.search(r'(?:Nome/Raz[ãa]o\s+Social|Raz[ãa]o\s+Social|Nome\s+Empresarial|Nome\s+Fantasia)[:\s]+(.+)', l, re.IGNORECASE)
+                        if m_emp:
+                            cand = m_emp.group(1).strip()
+                            if len(cand) >= 3 and not any(t in cand.upper() for t in ['CNPJ', 'PRESTADOR', 'TOMADOR']):
+                                empresa_nome = cand
+                                break
+
+                # B) Número da NFS-e (ampla cobertura de padrões municipais e nacionais com/sem acento)
+                padroes_num_nfse = [
+                    r'(?:N[úu]mero\s+da\s+NFS-?e|NFS-?e\s*N[ºo°\.]*|NFSe\s*N[ºo°\.]*)[:\s]+(\d+)',
+                    r'(?:N[úu]mero\s+da\s+Nota\s+Fiscal(?:\s+Eletr[ôo]nica)?|N[ºo°\.]*\s+da\s+Nota\s+Fiscal(?:\s+Eletr[ôo]nica)?)[:\s]+(\d+)',
+                    r'(?:N[úu]mero\s+da\s+Nota|N[ºo°\.]*\s+da\s+Nota|N[ºo°\.]*\s+da\s+NFS-?e)[:\s]+(\d+)',
+                    r'(?:Nota\s+Fiscal\s+de\s+Servi[çc]os\s+Eletr[ôo]nica|NFS-?e)[\s\-–]+N[ºo°\.]*[:\s]*(\d+)',
+                    r'Nota\s+Fiscal\s+n[ºo°\.]*[:\s]*(\d+)',
+                    r'N[ºo°\.]\s*da\s+Nota[:\s]+(\d+)',
+                    r'NFS-?e\s*[:\s]+(\d+)',
+                    r'NFSe\s*[:\s]+(\d+)',
+                    r'Nota\s+Fiscal[:\s]+(\d+)',
+                    r'N[úu]mero\s+do\s+Documento[:\s]+(\d+)',
+                    r'(?:N[úu]mero|N[ºo°\.]*)[:\s]+(\d{1,9})\b'
+                ]
+                for p in padroes_num_nfse:
+                    m = re.search(p, texto_pdf, re.IGNORECASE)
+                    if m:
+                        cand = m.group(1).strip()
+                        if cand and not (len(cand) == 4 and cand.startswith('20')):
+                            numero_nota = cand
+                            break
+                        elif not numero_nota:
+                            numero_nota = cand
+
+                # C) Valor da NFS-e (ampla cobertura de descrições líquidas e brutas)
+                padroes_val_nfse = [
+                    r'(?:Valor\s+L[ií]quido\s+da\s+Nota\s+Fiscal|Valor\s+L[ií]quido\s+da\s+NFS-?e)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+L[ií]quido\s+da\s+Nota|VALOR\s+L[IÍ]QUIDO\s+DA\s+NOTA)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+L[ií]quido|VALOR\s+L[IÍ]QUIDO)(?:\s*\(R\$\))?[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+Total\s+dos\s+Servi[çc]os|VALOR\s+TOTAL\s+DOS\s+SERVI[ÇC]OS)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+dos\s+Servi[çc]os|VALOR\s+SERVI[ÇC]OS)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+do\s+Servi[çc]o|VALOR\s+SERVI[ÇC]O)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Total\s+dos\s+Servi[çc]os|TOTAL\s+SERVI[ÇC]OS)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+Total\s+da\s+Nota|VALOR\s+TOTAL\s+DA\s+NOTA|VALOR\s+TOTAL\s+DA\s+NFS-?E)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+da\s+Nota|VALOR\s+DA\s+NOTA)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+L[ií]quido\s+a\s+Pagar|VALOR\s+A\s+PAGAR|Total\s+a\s+Pagar)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Total\s+da\s+Nota|TOTAL\s+DA\s+NOTA)[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:Valor\s+Total|VALOR\s+TOTAL)[:\s]*R?\$?\s*([\d\.]+,\d{2})'
+                ]
+                for p in padroes_val_nfse:
+                    m = re.search(p, texto_pdf, re.IGNORECASE)
+                    if m:
+                        valor_total = m.group(1).strip()
+                        break
+
+            # ── 3. EXTRAÇÃO ESPECÍFICA DANFE (MATERIAL) ──────────────────────────
+            elif is_danfe:
+                # A) Nome da empresa no DANFE
+                m_canhoto = re.search(r'RECEBEMOS\s+DE\s+(.+?)\s+OS\s+PRODUTOS', texto_pdf, re.IGNORECASE)
+                if m_canhoto and len(m_canhoto.group(1).strip()) >= 3:
+                    empresa_nome = m_canhoto.group(1).strip()
+                else:
                     for i, l in enumerate(linhas_pdf):
-                        if 'NOME/RAZÃO SOCIAL' in l.upper() or 'NOME/RAZAO SOCIAL' in l.upper():
-                            if ':' in l and len(l.split(':', 1)[1].strip()) >= 3:
-                                empresa_nome = l.split(':', 1)[1].strip()
-                            elif i > 0 and len(linhas_pdf[i-1].strip()) >= 3 and not any(t in linhas_pdf[i-1].upper() for t in ['CNPJ', 'PRESTADOR', 'TOMADOR']):
-                                empresa_nome = linhas_pdf[i-1].strip()
+                        if 'IDENTIFICAÇ' in l.upper() and 'EMITENTE' in l.upper():
+                            termos_descarte = [
+                                'DANFE', 'DOCUMENTO AUXILIAR', 'NOTA FISCAL', 'FISCAL ELETRÔNICA', 'FISCAL ELETRONICA',
+                                'CHAVE DE ACESSO', '0 - ENTRADA', '1 - SAÍDA', '1 - SAIDA', 'SÉRIE', 'SERIE', 'FOLHA',
+                                'Nº', 'N.', 'PROTOCOLO', 'CONSULTA', 'WWW.NFE'
+                            ]
+                            for j in range(i + 1, min(i + 12, len(linhas_pdf))):
+                                cand = linhas_pdf[j].strip()
+                                if len(cand) >= 3 and not any(t in cand.upper() for t in termos_descarte) and not re.search(r'^\d[\d\.\-\/]+$', cand):
+                                    empresa_nome = cand
+                                    break
                             break
 
-                # B) Número da NFS-e (evita RPS)
-                m_num = re.search(r'N[ºo°\.]*\s+da\s+Nota\s*[:\s]+(\d+)', texto_pdf, re.IGNORECASE)
+                # B) Número da DANFE
+                m_num = re.search(r'N[ºo°\.]+\s*(\d{3}\.\d{3}\.\d{3})\b', texto_pdf)
                 if not m_num:
-                    m_num = re.search(r'N[úu]mero\s+da\s+NFS-?e\s*[:\s]+(\d+)', texto_pdf, re.IGNORECASE)
+                    m_num = re.search(r'\b(\d{3}\.\d{3}\.\d{3})\b', texto_pdf)
                 if not m_num:
-                    m_num = re.search(r'NFS-?e\s*N[ºo°\.]*\s*(\d+)', texto_pdf, re.IGNORECASE)
+                    m_num = re.search(r'N[ºo°\.]+\s*(\d{9})\b', texto_pdf)
+                if not m_num:
+                    m_num = re.search(r'N[ºo°\.]+\s*(\d{1,9})\b', texto_pdf)
                 if m_num:
                     numero_nota = m_num.group(1)
 
-                # C) Valor da NFS-e
-                m_val = re.search(r'Valor\s+L[ií]quido\s+da\s+Nota\s+Fiscal\s*[-:\s]*R\$\s*([\d\.]+,\d{2})', texto_pdf, re.IGNORECASE)
-                if not m_val:
-                    m_val = re.search(r'VALOR\s+TOTAL\s+DA\s+NOTA\s*[:\s]*([\d\.]+,\d{2})', texto_pdf, re.IGNORECASE)
-                if not m_val:
-                    m_val = re.search(r'Valor\s+Total\s+dos\s+Servi[çc]os\s*[-:\s]*R\$\s*([\d\.]+,\d{2})', texto_pdf, re.IGNORECASE)
-                if m_val:
-                    valor_total = m_val.group(1)
+                # C) Valor da DANFE
+                padroes_val_danfe = [
+                    r'VALOR TOTAL:\s*R\$\s*([\d\.]+,\d{2})',
+                    r'V\.\s*TOTAL\s+DA\s+NOTA\s*[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'V\.\s*TOTAL\s+PRODUTOS\s*[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'(?:VALOR\s+DA\s+NOTA|TOTAL\s+DA\s+NOTA)\s*[:\s]*R?\$?\s*([\d\.]+,\d{2})',
+                    r'VALOR\s+TOTAL\s*[:\s]*R?\$?\s*([\d\.]+,\d{2})'
+                ]
+                for p in padroes_val_danfe:
+                    m = re.search(p, texto_pdf, re.IGNORECASE)
+                    if m:
+                        valor_total = m.group(1).strip()
+                        break
 
+            # ── 4. CASO GENÉRICO / ORDEM DE SERVIÇO TICKET LOG ────────────────────
             else:
-                # Caso genérico / Ordem de Serviço Ticket Log
                 m_os_nome = re.search(r'Nome\s+([A-Z0-9\s]+?)\s+CNPJ', texto_pdf)
                 if m_os_nome:
                     empresa_nome = m_os_nome.group(1).strip()
                 elif linhas_pdf and len(linhas_pdf[0].strip()) >= 5:
                     empresa_nome = linhas_pdf[0].strip()
 
-            # ── 3. NÚMERO DA ORDEM DE SERVIÇO TICKET LOG (8 DÍGITOS) ─────────────
+            # Número da Ordem de Serviço Ticket Log (8 dígitos)
             m_os_num = re.search(r'(?:Ordem\s+de\s+Servi[çc]o|N[úu]mero\s+da\s+Ordem\s+de\s+Servi[çc]o|O\.?S\.?)[:\s]+(\d{8})\b', texto_pdf, re.IGNORECASE)
             if not m_os_num:
-                if any(t in texto_pdf.upper() for t in ['TICKET LOG', 'SOU LOG', 'TICKETLOG']):
+                if any(t in texto_upper for t in ['TICKET LOG', 'SOU LOG', 'TICKETLOG']):
                     m_os_num = re.search(r'\b(\d{8})\b', texto_pdf)
             if m_os_num:
                 numero_os = m_os_num.group(1)

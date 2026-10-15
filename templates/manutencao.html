@@ -1122,7 +1122,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnAtualizar = document.getElementById('btnAtualizarTextoRecebimento');
 
     // --- Extração automática de empresa/CNPJ/Nº/Valor a partir do arquivo de nota fiscal ---
-    function extrairDadosDeNota(inputEl, statusEl, campoNumero, campoValor) {
+    function parseMoedaBR(valStr) {
+        if (!valStr) return 0.0;
+        let s = String(valStr).replace(/R\$/gi, '').replace(/\s/g, '');
+        if (s.indexOf(',') !== -1 && s.indexOf('.') !== -1) {
+            if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+                s = s.replace(/\./g, '').replace(',', '.');
+            } else {
+                s = s.replace(/,/g, '');
+            }
+        } else if (s.indexOf(',') !== -1) {
+            s = s.replace(',', '.');
+        }
+        const n = parseFloat(s);
+        return isNaN(n) ? 0.0 : n;
+    }
+
+    function extrairDadosDeNota(inputEl, statusEl, campoNumero, campoValor, tipoHint) {
         if (!inputEl) return;
         inputEl.addEventListener('change', function () {
             const file = this.files[0];
@@ -1130,6 +1146,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const formData = new FormData();
             formData.append('arquivo', file);
+            if (tipoHint) {
+                formData.append('tipo_hint', tipoHint);
+            }
 
             if (statusEl) {
                 statusEl.className = 'text-warning mt-1';
@@ -1176,19 +1195,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 const campoNumOs = document.getElementById('atestado_num_os');
                 if (data.numero_os && campoNumOs) {
                     campoNumOs.value = data.numero_os;
-                    camposPreenchidos.push('Nº OS Ticket Log (' + data.numero_os + ')');
+                    camposPreenchidos.push('Nº OS (' + data.numero_os + ')');
                 }
 
                 // Número da nota (específico do tipo de documento)
                 if (data.numero_nota && campoNumero) {
                     campoNumero.value = data.numero_nota;
-                    camposPreenchidos.push('Nº');
+                    camposPreenchidos.push('Nº ' + data.numero_nota);
                 }
 
                 // Valor (específico do tipo de documento)
                 if (data.valor_total && campoValor) {
                     campoValor.value = data.valor_total;
-                    camposPreenchidos.push('Valor');
+                    camposPreenchidos.push('Valor R$ ' + data.valor_total);
                 }
 
                 if (statusEl) {
@@ -1198,17 +1217,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         statusEl.classList.remove('d-none');
                     } else {
                         statusEl.className = 'text-warning mt-1';
-                        statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i>Não foi possível extrair dados. Preencha manualmente.';
+                        statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i>Não foi possível extrair dados automaticamente. Preencha manualmente.';
                         statusEl.classList.remove('d-none');
                     }
                 }
 
+                // Atualiza o preview e sincroniza a visualização
                 atualizarTextoPreview();
             })
             .catch(() => {
                 if (statusEl) {
                     statusEl.className = 'text-danger mt-1';
-                    statusEl.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i>Erro na comunicação. Preencha manualmente.';
+                    statusEl.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i>Erro na comunicação com o servidor. Preencha manualmente.';
                     statusEl.classList.remove('d-none');
                 }
             });
@@ -1220,21 +1240,24 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('arquivo_danfe_input'),
         document.getElementById('danfe_extracao_status'),
         document.getElementById('atestado_num_danfe'),
-        document.getElementById('atestado_val_danfe')
+        document.getElementById('atestado_val_danfe'),
+        'danfe'
     );
     // NFS-e → preenche Nº NFS-e e Valor NFS-e
     extrairDadosDeNota(
         document.getElementById('arquivo_nfse_input'),
         document.getElementById('nfse_extracao_status'),
         document.getElementById('atestado_num_nfse'),
-        document.getElementById('atestado_val_nfse')
+        document.getElementById('atestado_val_nfse'),
+        'nfse'
     );
     // OS Ticket Log → preenche Nº OS, Empresa e CNPJ
     extrairDadosDeNota(
         document.getElementById('arquivo_os_input'),
         document.getElementById('os_extracao_status'),
         document.getElementById('atestado_num_os'),
-        null
+        null,
+        'os'
     );
 
 
@@ -1304,17 +1327,17 @@ document.addEventListener('DOMContentLoaded', function () {
             viatura_marca: vtrMarca ? vtrMarca.value : '',
             viatura_modelo: vtrModelo ? vtrModelo.value : '',
             viatura_placa: vtrPlaca ? vtrPlaca.value : '',
-            cidade_carga: vtrCidade ? vtrCidade.value : 'Bagé',
-            numero_danfe: numDanfe ? numDanfe.value : '',
-            valor_danfe: valDanfe ? parseFloat(valDanfe.value.replace('.', '').replace(',', '.')) || 0.0 : 0.0,
-            numero_nfse: numNfse ? numNfse.value : '',
-            valor_nfse: valNfse ? parseFloat(valNfse.value.replace('.', '').replace(',', '.')) || 0.0 : 0.0,
-            empresa_nome: empNome ? empNome.value : '',
-            empresa_cnpj: empCnpj ? empCnpj.value : '',
-            responsavel_nome: respNome ? respNome.value : '',
-            responsavel_grad: respGrad ? respGrad.value : '',
-            responsavel_id_func: respIdFunc ? respIdFunc.value : '',
-            responsavel_cargo: respCargo ? respCargo.value : ''
+            cidade_carga: vtrCidade ? vtrCidade.value : '',
+            numero_danfe: numDanfe ? numDanfe.value.trim() : '',
+            valor_danfe: valDanfe ? parseMoedaBR(valDanfe.value) : 0.0,
+            numero_nfse: numNfse ? numNfse.value.trim() : '',
+            valor_nfse: valNfse ? parseMoedaBR(valNfse.value) : 0.0,
+            empresa_nome: empNome ? empNome.value.trim() : '',
+            empresa_cnpj: empCnpj ? empCnpj.value.trim() : '',
+            responsavel_nome: respNome ? respNome.value.trim() : '',
+            responsavel_grad: respGrad ? respGrad.value.trim() : '',
+            responsavel_id_func: respIdFunc ? respIdFunc.value.trim() : '',
+            responsavel_cargo: respCargo ? respCargo.value.trim() : ''
         };
 
         fetch('/api/manutencao/atestado/texto-preview', {
@@ -1336,8 +1359,22 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     [numDanfe, valDanfe, numNfse, valNfse, empNome, empCnpj, vtrMarca, vtrModelo, vtrPlaca, vtrCidade].forEach(el => {
-        if (el) el.addEventListener('input', atualizarTextoPreview);
+        if (el) {
+            el.addEventListener('input', atualizarTextoPreview);
+            el.addEventListener('change', atualizarTextoPreview);
+            el.addEventListener('blur', atualizarTextoPreview);
+        }
     });
+
+    // Listener para quando o modal de Emitir Atestado for aberto
+    const modalAtestadoEl = document.getElementById('modalEmitirAtestadoRecebimento');
+    if (modalAtestadoEl) {
+        modalAtestadoEl.addEventListener('shown.bs.modal', function () {
+            ajustarVisibilidadeBlocos();
+            atualizarPreviewAssinatura();
+            atualizarTextoPreview();
+        });
+    }
 
     // --- 2. Botão "Emitir Atestado" direto no card da viatura ---
     document.querySelectorAll('.btn-emitir-atestado-vtr').forEach(btn => {
@@ -1356,6 +1393,7 @@ document.addEventListener('DOMContentLoaded', function () {
             modal.show();
         });
     });
+
 
     // --- 3. Botão "Abrir Pasta" da Viatura com Visualização por Subpastas de OS ---
     const modalVerPasta = document.getElementById('modalVerPastaViatura');
