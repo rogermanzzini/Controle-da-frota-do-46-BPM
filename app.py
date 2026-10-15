@@ -947,6 +947,16 @@ def extrair_dados_nota_fiscal():
                 ]) or
                 _find_text(root, 'ide', 'nNF')
             )
+            if numero_nota:
+                numero_nota = numero_nota.strip()
+                if re.match(r'^\d{4}[\/\.\-]\d{9}$', numero_nota):
+                    numero_nota = re.sub(r'[\/\.\-]', '', numero_nota)
+                is_xml_bage = any(x in texto_xml.upper() for x in ['4301602', 'BAGE', 'BAGÉ'])
+                if numero_nota.isdigit() and len(numero_nota) < 13 and is_xml_bage:
+                    m_data = _find_any(root, ['DataEmissao', 'dEmi', 'dhEmi'])
+                    m_ano = re.search(r'\b(20\d{2})\b', m_data or '')
+                    ano = m_ano.group(1) if m_ano else datetime.now().strftime('%Y')
+                    numero_nota = f"{ano}{int(numero_nota):09d}"
 
             # --- Valor total / Líquido ---
             valor_raw = (
@@ -1050,19 +1060,19 @@ def extrair_dados_nota_fiscal():
                                 empresa_nome = cand
                                 break
 
-                # B) Número da NFS-e (ampla cobertura de padrões municipais e nacionais com/sem acento)
+                # B) Número da NFS-e (ampla cobertura de padrões municipais e nacionais com suporte a até 13 dígitos)
                 padroes_num_nfse = [
-                    r'(?:N[úu]mero\s+da\s+NFS-?e|NFS-?e\s*N[ºo°\.]*|NFSe\s*N[ºo°\.]*)[:\s]+(\d+)',
-                    r'(?:N[úu]mero\s+da\s+Nota\s+Fiscal(?:\s+Eletr[ôo]nica)?|N[ºo°\.]*\s+da\s+Nota\s+Fiscal(?:\s+Eletr[ôo]nica)?)[:\s]+(\d+)',
-                    r'(?:N[úu]mero\s+da\s+Nota|N[ºo°\.]*\s+da\s+Nota|N[ºo°\.]*\s+da\s+NFS-?e)[:\s]+(\d+)',
-                    r'(?:Nota\s+Fiscal\s+de\s+Servi[çc]os\s+Eletr[ôo]nica|NFS-?e)[\s\-–]+N[ºo°\.]*[:\s]*(\d+)',
-                    r'Nota\s+Fiscal\s+n[ºo°\.]*[:\s]*(\d+)',
-                    r'N[ºo°\.]\s*da\s+Nota[:\s]+(\d+)',
-                    r'NFS-?e\s*[:\s]+(\d+)',
-                    r'NFSe\s*[:\s]+(\d+)',
-                    r'Nota\s+Fiscal[:\s]+(\d+)',
-                    r'N[úu]mero\s+do\s+Documento[:\s]+(\d+)',
-                    r'(?:N[úu]mero|N[ºo°\.]*)[:\s]+(\d{1,9})\b'
+                    r'(?:N[úu]mero\s+da\s+NFS-?e|NFS-?e\s*N[ºo°\.]*|NFSe\s*N[ºo°\.]*)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                    r'(?:N[úu]mero\s+da\s+Nota\s+Fiscal(?:\s+Eletr[ôo]nica)?|N[ºo°\.]*\s+da\s+Nota\s+Fiscal(?:\s+Eletr[ôo]nica)?)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                    r'(?:N[úu]mero\s+da\s+Nota|N[ºo°\.]*\s+da\s+Nota|N[ºo°\.]*\s+da\s+NFS-?e)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                    r'(?:Nota\s+Fiscal\s+de\s+Servi[çc]os\s+Eletr[ôo]nica|NFS-?e)[\s\-–]+N[ºo°\.]*[:\s]*(\d{4}[\/\.\-]?\d{9}|\d+)',
+                    r'Nota\s+Fiscal\s+n[ºo°\.]*[:\s]*(\d{4}[\/\.\-]?\d{9}|\d+)',
+                    r'N[ºo°\.]\s*da\s+Nota[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                    r'NFS-?e\s*[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                    r'NFSe\s*[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                    r'Nota\s+Fiscal[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                    r'N[úu]mero\s+do\s+Documento[:\s]+(\d{4}[\/\.\-]?\d{9}|\d+)',
+                    r'(?:N[úu]mero|N[ºo°\.]*)[:\s]+(\d{4}[\/\.\-]?\d{9}|\d{1,15})\b'
                 ]
                 for p in padroes_num_nfse:
                     m = re.search(p, texto_pdf, re.IGNORECASE)
@@ -1073,6 +1083,31 @@ def extrair_dados_nota_fiscal():
                             break
                         elif not numero_nota:
                             numero_nota = cand
+
+                # Se ainda não encontrou, busca 13 dígitos característicos de NFS-e municipal (ex: AAAA + 9 dígitos)
+                if not numero_nota:
+                    m13 = re.search(r'\b(20\d{11}|\d{13})\b', texto_pdf)
+                    if m13:
+                        numero_nota = m13.group(1).strip()
+                    else:
+                        m13_fmt = re.search(r'\b(20\d{2}[\/\.\-]\d{9})\b', texto_pdf)
+                        if m13_fmt:
+                            numero_nota = m13_fmt.group(1).strip()
+
+                # Normalização: se veio com separadores (2026/000000662 -> 2026000000662)
+                if numero_nota and re.match(r'^\d{4}[\/\.\-]\d{9}$', numero_nota):
+                    numero_nota = re.sub(r'[\/\.\-]', '', numero_nota)
+
+                # Se o documento é de Bagé e o número extraído tem menos de 13 dígitos (ex: 662),
+                # formata para o padrão municipal oficial de 13 dígitos (AAAA + 9 dígitos com zeros à esquerda: 2026000000662)
+                is_bage = any(b in texto_upper for b in [
+                    'PREFEITURA MUNICIPAL DE BAGE', 'MUNICÍPIO DE BAGÉ', 'MUNICIPIO DE BAGE',
+                    'MUNICÍPIO: BAGE', 'MUNICIPIO: BAGE', 'BAGE/RS', 'BAGÉ/RS', 'BAGE - RS', 'BAGÉ - RS'
+                ])
+                if numero_nota and numero_nota.isdigit() and len(numero_nota) < 13 and is_bage:
+                    m_ano = re.search(r'\b\d{2}/\d{2}/(20\d{2})\b', texto_pdf)
+                    ano = m_ano.group(1) if m_ano else datetime.now().strftime('%Y')
+                    numero_nota = f"{ano}{int(numero_nota):09d}"
 
                 # C) Valor da NFS-e (ampla cobertura de descrições líquidas e brutas)
                 padroes_val_nfse = [

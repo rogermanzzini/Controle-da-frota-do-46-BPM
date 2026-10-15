@@ -604,8 +604,11 @@
                                     <div class="fw-bold text-info small mb-1"><i class="fa-solid fa-wrench me-1"></i> Dados da NFS-e (Serviços)</div>
                                     <div class="row g-2">
                                         <div class="col-6">
-                                            <label class="form-label small text-secondary mb-1">Nº NFS-e</label>
-                                            <input type="text" name="numero_nfse" id="atestado_num_nfse" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Ex: 169">
+                                            <label class="form-label small text-secondary mb-1 d-flex justify-content-between align-items-center">
+                                                <span>Nº NFS-e</span>
+                                                <button type="button" class="btn btn-outline-info py-0 px-1" style="font-size: 0.68rem;" id="btnFormatar13Digitos" title="Formatar número no padrão oficial de 13 dígitos (Ano + 9 algarismos, ex: Bagé)"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>13 dígitos</button>
+                                            </label>
+                                            <input type="text" name="numero_nfse" id="atestado_num_nfse" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Ex: 2026000000662">
                                         </div>
                                         <div class="col-6">
                                             <label class="form-label small text-secondary mb-1">Valor NFS-e (R$)</label>
@@ -1260,6 +1263,19 @@ document.addEventListener('DOMContentLoaded', function () {
         'os'
     );
 
+
+    // Botão para formatar número de NFS-e no padrão municipal oficial de 13 dígitos (Ano + zeros à esquerda)
+    const btnFmt13 = document.getElementById('btnFormatar13Digitos');
+    if (btnFmt13 && numNfse) {
+        btnFmt13.addEventListener('click', function () {
+            let val = numNfse.value.trim();
+            if (val && /^\d+$/.test(val) && val.length < 13) {
+                const anoAtual = new Date().getFullYear();
+                numNfse.value = `${anoAtual}${val.padStart(9, '0')}`;
+                atualizarTextoPreview();
+            }
+        });
+    }
 
     function atualizarPreviewAssinatura() {
         if (prevNome && respNome) prevNome.innerText = respNome.value.trim().toUpperCase() || 'JULIANO INOCENTE VELEDA';
