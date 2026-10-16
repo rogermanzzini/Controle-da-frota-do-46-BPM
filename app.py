@@ -951,12 +951,6 @@ def extrair_dados_nota_fiscal():
                 numero_nota = numero_nota.strip()
                 if re.match(r'^\d{4}[\/\.\-]\d{9}$', numero_nota):
                     numero_nota = re.sub(r'[\/\.\-]', '', numero_nota)
-                is_xml_bage = any(x in texto_xml.upper() for x in ['4301602', 'BAGE', 'BAGÉ'])
-                if numero_nota.isdigit() and len(numero_nota) < 13 and is_xml_bage:
-                    m_data = _find_any(root, ['DataEmissao', 'dEmi', 'dhEmi'])
-                    m_ano = re.search(r'\b(20\d{2})\b', m_data or '')
-                    ano = m_ano.group(1) if m_ano else datetime.now().strftime('%Y')
-                    numero_nota = f"{ano}{int(numero_nota):09d}"
 
             # --- Valor total / Líquido ---
             valor_raw = (
@@ -1169,17 +1163,6 @@ def extrair_dados_nota_fiscal():
                 # Normalização: se veio com separadores (2026/000000662 -> 2026000000662)
                 if numero_nota and re.match(r'^\d{4}[\/\.\-]\d{9}$', numero_nota):
                     numero_nota = re.sub(r'[\/\.\-]', '', numero_nota)
-
-                # Se o documento é de Bagé e o número extraído tem menos de 13 dígitos (ex: 662),
-                # formata para o padrão municipal oficial de 13 dígitos (AAAA + 9 dígitos com zeros à esquerda: 2026000000662)
-                is_bage = any(b in texto_upper for b in [
-                    'PREFEITURA MUNICIPAL DE BAGE', 'MUNICÍPIO DE BAGÉ', 'MUNICIPIO DE BAGE',
-                    'MUNICÍPIO: BAGE', 'MUNICIPIO: BAGE', 'BAGE/RS', 'BAGÉ/RS', 'BAGE - RS', 'BAGÉ - RS'
-                ])
-                if numero_nota and numero_nota.isdigit() and len(numero_nota) < 13 and is_bage:
-                    m_ano = re.search(r'\b\d{2}/\d{2}/(20\d{2})\b', texto_pdf)
-                    ano = m_ano.group(1) if m_ano else datetime.now().strftime('%Y')
-                    numero_nota = f"{ano}{int(numero_nota):09d}"
 
                 # C) Valor da NFS-e:
                 # 1. Tabela com 'Valor Total da Nota (R$)' ou 'Valor Líquido (R$)' seguido de linha com valores
