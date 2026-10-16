@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "username": "0000001",
+    "nome_completo": "Administrador",
+    "senha_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "papel": "admin",
+    "ativo": 1,
+    "data_cadastro": "2026-10-09 15:16:50",
+    "ultimo_acesso": "2026-10-15T16:21:46.078413"
+  },
+  {
+    "id": 2,
+    "username": "admin",
+    "nome_completo": "Administrador Geral",
+    "senha_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "papel": "admin",
+    "ativo": 1,
+    "data_cadastro": "2026-10-16 12:34:02",
+    "ultimo_acesso": "2026-10-16T09:37:40.017962"
+  },
+  {
+    "id": 3,
+    "username": "3155358",
+    "nome_completo": "JULIANO INOCENTE VELEDA",
+    "senha_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "papel": "admin",
+    "ativo": 1,
+    "data_cadastro": "2026-10-16 12:34:02",
+    "ultimo_acesso": null
+  }
+]

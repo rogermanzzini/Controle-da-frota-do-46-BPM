@@ -145,7 +145,7 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     if request.method == 'POST':
-        username = request.form.get('username', '').strip().lower()
+        username = request.form.get('username', '').strip()
         senha = request.form.get('senha', '')
         usuario_data = database.usuario_verificar_senha(username, senha)
         if usuario_data:
@@ -156,7 +156,7 @@ def login():
             flash(f'Bem-vindo, {usuario_data["nome_completo"]}!', 'success')
             return redirect(next_page or url_for('dashboard'))
         else:
-            flash('Usuário ou senha incorretos.', 'danger')
+            flash('Usuário ou senha incorretos. Verifique suas credenciais.', 'danger')
     return render_template('login.html')
 
 
@@ -183,7 +183,7 @@ def admin_usuarios():
 @app.route('/admin/usuarios/criar', methods=['POST'])
 @login_required
 def admin_criar_usuario():
-    """Cria um novo usuário."""
+    """Cria um novo usuário ou reativa se existente."""
     if not current_user.is_admin:
         return jsonify({'erro': 'Acesso negado'}), 403
     username = request.form.get('username', '').strip()
@@ -193,17 +193,55 @@ def admin_criar_usuario():
     if not username or not nome_completo or not senha:
         flash('Preencha todos os campos obrigatórios.', 'danger')
         return redirect(url_for('admin_usuarios'))
-    if not username.isdigit() or len(username) != 7:
-        flash('O ID Funcional deve conter exatamente 7 dígitos numéricos.', 'danger')
+    if len(username) < 2 or len(username) > 50:
+        flash('O nome de usuário ou ID Funcional deve ter entre 2 e 50 caracteres.', 'danger')
         return redirect(url_for('admin_usuarios'))
-    if len(senha) < 6:
-        flash('A senha deve ter pelo menos 6 caracteres.', 'danger')
+    if len(senha) < 4:
+        flash('A senha deve ter pelo menos 4 caracteres.', 'danger')
         return redirect(url_for('admin_usuarios'))
     ok = database.usuario_criar(username, nome_completo, senha, papel)
     if ok:
-        flash(f'Usuário "{username}" criado com sucesso!', 'success')
+        flash(f'Usuário "{username}" salvo com sucesso!', 'success')
     else:
-        flash(f'Usuário "{username}" já existe.', 'danger')
+        flash(f'Usuário "{username}" já existe e está ativo.', 'warning')
+    return redirect(url_for('admin_usuarios'))
+
+
+@app.route('/admin/usuarios/exportar')
+@login_required
+def admin_exportar_usuarios():
+    """Exporta a base de usuários em JSON para download seguro."""
+    if not current_user.is_admin:
+        flash('Acesso restrito a administradores.', 'danger')
+        return redirect(url_for('dashboard'))
+    usuarios = database.usuarios_listar_todos()
+    import json
+    return send_file(
+        io.BytesIO(json.dumps(usuarios, indent=2, ensure_ascii=False).encode('utf-8')),
+        mimetype='application/json',
+        as_attachment=True,
+        download_name='usuarios_backup.json'
+    )
+
+
+@app.route('/admin/usuarios/importar', methods=['POST'])
+@login_required
+def admin_importar_usuarios():
+    """Restaura usuários a partir de arquivo de backup JSON."""
+    if not current_user.is_admin:
+        flash('Acesso restrito a administradores.', 'danger')
+        return redirect(url_for('dashboard'))
+    arquivo = request.files.get('arquivo_backup')
+    if not arquivo or not arquivo.filename:
+        flash('Selecione um arquivo JSON de backup para importar.', 'warning')
+        return redirect(url_for('admin_usuarios'))
+    try:
+        import json
+        dados = json.loads(arquivo.read().decode('utf-8'))
+        total = database.restaurar_lista_usuarios(dados)
+        flash(f'Backup de usuários restaurado com sucesso! ({total} usuários processados/atualizados)', 'success')
+    except Exception as e:
+        flash(f'Erro ao processar arquivo de backup: {str(e)}', 'danger')
     return redirect(url_for('admin_usuarios'))
 
 

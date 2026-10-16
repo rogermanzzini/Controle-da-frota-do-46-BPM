@@ -5,6 +5,8 @@ Gerencia tabelas de viaturas alvo, abastecimentos filtrados e lotes de importaç
 
 import sqlite3
 import os
+import json
+import hashlib
 from typing import List, Dict, Any, Optional
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bpm46_combustivel.db')
@@ -273,34 +275,136 @@ def init_db():
     # Inicializar dados padrão se necessário
     popular_dados_iniciais_manutencao_pneus()
     popular_viaturas_padrao_46bpm()
-    _criar_admin_padrao()
+    _garantir_usuarios_padrao()
 
 
-# ─────────────────────────── GESTÃO DE USUÁRIOS ────────────────────────────
+# ─────────────────────────── GESTÃO DE USUÁRIOS E PERSISTÊNCIA ────────────────────────────
 
-def _criar_admin_padrao():
-    """Cria o usuário admin padrão se não existir nenhum usuário no banco."""
-    import hashlib
+USUARIOS_BACKUP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'usuarios_backup.json')
+
+
+def salvar_backup_usuarios():
+    """Salva todos os usuários em um arquivo JSON local para persistência e portabilidade."""
+    try:
+        conn = get_connection()
+        rows = conn.execute(
+            "SELECT id, username, nome_completo, senha_hash, papel, ativo, data_cadastro, ultimo_acesso FROM usuarios ORDER BY id"
+        ).fetchall()
+        conn.close()
+        lista = [dict(r) for r in rows]
+        with open(USUARIOS_BACKUP_PATH, 'w', encoding='utf-8') as f:
+            json.dump(lista, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Aviso ao salvar backup de usuários: {e}")
+
+
+def _aplicar_lista_usuarios(lista: list) -> int:
+    """Aplica uma lista de usuários restaurados no banco SQLite."""
+    if not isinstance(lista, list):
+        return 0
+    total = 0
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) as total FROM usuarios")
-    total = cursor.fetchone()['total']
-    if total == 0:
-        senha_hash = hashlib.sha256('admin123'.encode()).hexdigest()
-        cursor.execute(
-            "INSERT INTO usuarios (username, nome_completo, senha_hash, papel) VALUES (?, ?, ?, ?)",
-            ('0000001', 'Administrador', senha_hash, 'admin')
-        )
-        conn.commit()
+    for u in lista:
+        if not isinstance(u, dict) or 'username' not in u:
+            continue
+        u_name = str(u['username']).strip().lower()
+        if not u_name:
+            continue
+        nome = u.get('nome_completo') or u_name
+        senha_hash = u.get('senha_hash') or hashlib.sha256('admin123'.encode()).hexdigest()
+        papel = u.get('papel') or 'operador'
+        ativo = 1 if u.get('ativo', 1) else 0
+
+        row = cursor.execute(
+            "SELECT id FROM usuarios WHERE LOWER(TRIM(username)) = ?", (u_name,)
+        ).fetchone()
+        if not row:
+            cursor.execute(
+                "INSERT INTO usuarios (username, nome_completo, senha_hash, papel, ativo) VALUES (?, ?, ?, ?, ?)",
+                (u_name, nome, senha_hash, papel, ativo)
+            )
+            total += 1
+        else:
+            cursor.execute(
+                "UPDATE usuarios SET nome_completo = ?, senha_hash = ?, papel = ?, ativo = ? WHERE id = ?",
+                (nome, senha_hash, papel, ativo, row['id'])
+            )
+            total += 1
+    conn.commit()
     conn.close()
+    return total
+
+
+def _garantir_usuarios_padrao():
+    """
+    Garante que os usuários administrativos e padrão sempre existam no banco,
+    mesmo após reinicializações, migrações ou novos deploys na nuvem.
+    Restaura também do backup JSON ou variável de ambiente se disponível.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # 1. Usuários essenciais do sistema
+    padrao = [
+        ('admin', 'Administrador Geral', hashlib.sha256('admin123'.encode()).hexdigest(), 'admin'),
+        ('0000001', 'Administrador Padrão', hashlib.sha256('admin123'.encode()).hexdigest(), 'admin'),
+        ('3155358', 'JULIANO INOCENTE VELEDA', hashlib.sha256('admin123'.encode()).hexdigest(), 'admin')
+    ]
+
+    for u_name, u_nome, u_hash, u_papel in padrao:
+        row = cursor.execute(
+            "SELECT id, ativo FROM usuarios WHERE LOWER(TRIM(username)) = ?", (u_name.lower(),)
+        ).fetchone()
+        if not row:
+            cursor.execute(
+                "INSERT INTO usuarios (username, nome_completo, senha_hash, papel, ativo) VALUES (?, ?, ?, ?, 1)",
+                (u_name.lower(), u_nome, u_hash, u_papel)
+            )
+        elif row['ativo'] == 0:
+            cursor.execute("UPDATE usuarios SET ativo = 1 WHERE id = ?", (row['id'],))
+
+    conn.commit()
+    conn.close()
+
+    # 2. Restaurar de PERSISTENT_USERS_JSON se presente no ambiente (ex: Render)
+    env_users = os.environ.get('PERSISTENT_USERS_JSON')
+    if env_users:
+        try:
+            dados = json.loads(env_users)
+            _aplicar_lista_usuarios(dados)
+        except Exception as e:
+            print(f"Aviso ao carregar PERSISTENT_USERS_JSON: {e}")
+
+    # 3. Restaurar do arquivo de backup JSON caso exista
+    if os.path.exists(USUARIOS_BACKUP_PATH):
+        try:
+            with open(USUARIOS_BACKUP_PATH, 'r', encoding='utf-8') as f:
+                dados = json.load(f)
+                _aplicar_lista_usuarios(dados)
+        except Exception as e:
+            print(f"Aviso ao carregar {USUARIOS_BACKUP_PATH}: {e}")
+
+    # Salvar consolidado atualizado
+    salvar_backup_usuarios()
+
+
+def restaurar_lista_usuarios(lista: list) -> int:
+    """Função pública para importar lista de usuários via upload/API."""
+    res = _aplicar_lista_usuarios(lista)
+    salvar_backup_usuarios()
+    return res
 
 
 def usuario_get_by_username(username: str) -> Optional[Dict[str, Any]]:
-    """Retorna um usuário pelo username, ou None se não encontrado."""
+    """Retorna um usuário pelo username de forma insensível a maiúsculas."""
+    if not username:
+        return None
     conn = get_connection()
     cursor = conn.cursor()
     row = cursor.execute(
-        "SELECT * FROM usuarios WHERE username = ? AND ativo = 1", (username,)
+        "SELECT * FROM usuarios WHERE LOWER(TRIM(username)) = LOWER(TRIM(?)) AND ativo = 1",
+        (username.strip(),)
     ).fetchone()
     conn.close()
     return dict(row) if row else None
@@ -316,14 +420,15 @@ def usuario_get_by_id(user_id: int) -> Optional[Dict[str, Any]]:
 
 
 def usuario_verificar_senha(username: str, senha: str) -> Optional[Dict[str, Any]]:
-    """Verifica credenciais. Retorna o usuário se correto, None caso contrário."""
-    import hashlib
+    """Verifica credenciais com comparação insensível a maiúsculas e espaços."""
+    if not username or not senha:
+        return None
     senha_hash = hashlib.sha256(senha.encode()).hexdigest()
     conn = get_connection()
     cursor = conn.cursor()
     row = cursor.execute(
-        "SELECT * FROM usuarios WHERE username = ? AND senha_hash = ? AND ativo = 1",
-        (username, senha_hash)
+        "SELECT * FROM usuarios WHERE LOWER(TRIM(username)) = LOWER(TRIM(?)) AND senha_hash = ? AND ativo = 1",
+        (username.strip(), senha_hash)
     ).fetchone()
     conn.close()
     return dict(row) if row else None
@@ -342,39 +447,61 @@ def usuario_atualizar_ultimo_acesso(user_id: int):
 
 
 def usuario_criar(username: str, nome_completo: str, senha: str, papel: str = 'operador') -> bool:
-    """Cria um novo usuário. Retorna True se sucesso, False se username já existe."""
-    import hashlib
+    """Cria um novo usuário ou reativa se já existia inativo. Retorna True se sucesso."""
+    if not username or not senha:
+        return False
     senha_hash = hashlib.sha256(senha.encode()).hexdigest()
+    u_clean = username.strip().lower()
     try:
         conn = get_connection()
-        conn.execute(
-            "INSERT INTO usuarios (username, nome_completo, senha_hash, papel) VALUES (?, ?, ?, ?)",
-            (username.strip().lower(), nome_completo.strip(), senha_hash, papel)
+        cursor = conn.cursor()
+        existente = cursor.execute(
+            "SELECT id, ativo FROM usuarios WHERE LOWER(TRIM(username)) = ?", (u_clean,)
+        ).fetchone()
+        if existente:
+            if existente['ativo'] == 1:
+                conn.close()
+                return False  # Já existe e está ativo
+            else:
+                # Usuário existia inativo: reativa e atualiza dados e senha
+                cursor.execute(
+                    "UPDATE usuarios SET nome_completo = ?, senha_hash = ?, papel = ?, ativo = 1 WHERE id = ?",
+                    (nome_completo.strip(), senha_hash, papel, existente['id'])
+                )
+                conn.commit()
+                conn.close()
+                salvar_backup_usuarios()
+                return True
+        cursor.execute(
+            "INSERT INTO usuarios (username, nome_completo, senha_hash, papel, ativo) VALUES (?, ?, ?, ?, 1)",
+            (u_clean, nome_completo.strip(), senha_hash, papel)
         )
         conn.commit()
         conn.close()
+        salvar_backup_usuarios()
         return True
-    except sqlite3.IntegrityError:
+    except Exception as e:
+        print(f"Erro ao criar usuário: {e}")
         return False
 
 
 def usuario_atualizar(user_id: int, nome_completo: str, papel: str, senha: str = None) -> bool:
     """Atualiza dados de um usuário. Se senha fornecida, atualiza o hash."""
-    import hashlib
     conn = get_connection()
     if senha:
         senha_hash = hashlib.sha256(senha.encode()).hexdigest()
         conn.execute(
             "UPDATE usuarios SET nome_completo = ?, papel = ?, senha_hash = ? WHERE id = ?",
-            (nome_completo, papel, senha_hash, user_id)
+            (nome_completo.strip(), papel, senha_hash, user_id)
         )
     else:
         conn.execute(
             "UPDATE usuarios SET nome_completo = ?, papel = ? WHERE id = ?",
-            (nome_completo, papel, user_id)
+            (nome_completo.strip(), papel, user_id)
         )
     conn.commit()
     conn.close()
+    salvar_backup_usuarios()
     return True
 
 
@@ -384,14 +511,25 @@ def usuario_excluir(user_id: int) -> bool:
     conn.execute("UPDATE usuarios SET ativo = 0 WHERE id = ?", (user_id,))
     conn.commit()
     conn.close()
+    salvar_backup_usuarios()
     return True
 
 
 def usuarios_listar() -> List[Dict[str, Any]]:
-    """Retorna lista de todos os usuários ativos."""
+    """Retorna lista de todos os usuários cadastrados (ordenados por status e nome)."""
     conn = get_connection()
     rows = conn.execute(
-        "SELECT id, username, nome_completo, papel, ativo, data_cadastro, ultimo_acesso FROM usuarios ORDER BY nome_completo"
+        "SELECT id, username, nome_completo, papel, ativo, data_cadastro, ultimo_acesso FROM usuarios ORDER BY ativo DESC, nome_completo ASC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def usuarios_listar_todos() -> List[Dict[str, Any]]:
+    """Retorna lista completa com hashes para backup."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT id, username, nome_completo, senha_hash, papel, ativo, data_cadastro, ultimo_acesso FROM usuarios ORDER BY id ASC"
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
