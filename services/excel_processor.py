@@ -210,6 +210,142 @@ def carregar_planilha_excel(caminho_ou_arquivo) -> pd.DataFrame:
     return pd.read_excel(caminho_ou_arquivo)
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# MAPA OFICIAL DE VIATURAS E FRAÇÕES DO 46º BPM (BASE INVIOLÁVEL)
+# ═════════════════════════════════════════════════════════════════════════════
+
+MAPA_OFICIAL_VIATURAS_46BPM: Dict[str, Dict[str, str]] = {
+    # EM (Estado Maior - 6 viaturas)
+    'IVB4468': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '9532'},
+    'IYJ6447': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '11042'},
+    'IUX9E18': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '11375'},
+    'IYS9069': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '11489'},
+    'IZG6F14': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '11772'},
+    'MJM4J78': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '15853'},
+
+    # DOM PEDRITO (6 viaturas)
+    'IYJ6493': {'cidade': 'Dom Pedrito', 'fracao': '46º BPM - DOM PEDRITO', 'prefixo': '11041'},
+    'IZF4J45': {'cidade': 'Dom Pedrito', 'fracao': '46º BPM - DOM PEDRITO', 'prefixo': '11829'},
+    'IZP1E09': {'cidade': 'Dom Pedrito', 'fracao': '46º BPM - DOM PEDRITO', 'prefixo': '12241'},
+    'JBV9J95': {'cidade': 'Dom Pedrito', 'fracao': '46º BPM - DOM PEDRITO', 'prefixo': '14034'},
+    'TQO0D63': {'cidade': 'Dom Pedrito', 'fracao': '46º BPM - DOM PEDRITO', 'prefixo': '14716'},
+    'TQW0F80': {'cidade': 'Dom Pedrito', 'fracao': '46º BPM - DOM PEDRITO', 'prefixo': '14869'},
+
+    # LAVRAS DO SUL (3 viaturas)
+    'IYT3896': {'cidade': 'Lavras do Sul', 'fracao': '46º BPM - LAVRAS DO SUL', 'prefixo': '11565'},
+    'JBQ1D62': {'cidade': 'Lavras do Sul', 'fracao': '46º BPM - LAVRAS DO SUL', 'prefixo': '13821'},
+    'TQW2D96': {'cidade': 'Lavras do Sul', 'fracao': '46º BPM - LAVRAS DO SUL', 'prefixo': '14944'},
+
+    # PINHEIRO MACHADO (3 viaturas)
+    'IYS9341': {'cidade': 'Pinheiro Machado', 'fracao': '46º BPM - PINHEIRO MACHADO', 'prefixo': '11509'},
+    'JBQ7E09': {'cidade': 'Pinheiro Machado', 'fracao': '46º BPM - PINHEIRO MACHADO', 'prefixo': '13874'},
+    'JBW2B98': {'cidade': 'Pinheiro Machado', 'fracao': '46º BPM - PINHEIRO MACHADO', 'prefixo': '14066'},
+
+    # PEDRAS ALTAS (2 viaturas)
+    'JBQ7D83': {'cidade': 'Pedras Altas', 'fracao': '46º BPM - PEDRAS ALTAS', 'prefixo': '13872'},
+    'TQZ0B89': {'cidade': 'Pedras Altas', 'fracao': '46º BPM - PEDRAS ALTAS', 'prefixo': '15492'},
+
+    # CANDIOTA (1 viatura)
+    'JBM8H05': {'cidade': 'Candiota', 'fracao': '46º BPM - CANDIOTA', 'prefixo': '13436'},
+
+    # ACEGUÁ (2 viaturas)
+    'JBP8C25': {'cidade': 'Aceguá', 'fracao': '46º BPM - ACEGUÁ', 'prefixo': '13776'},
+    'TQW1H19': {'cidade': 'Aceguá', 'fracao': '46º BPM - ACEGUÁ', 'prefixo': '15025'},
+
+    # HULHA NEGRA (1 viatura)
+    'TQW1G99': {'cidade': 'Hulha Negra', 'fracao': '46º BPM - HULHA NEGRA', 'prefixo': '14916'},
+
+    # BAGÉ (19 viaturas + equipamentos)
+    'JBM3576': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '7879'},
+    'IVB4F30': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '9565'},
+    'IVA4820': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '9583'},
+    'IVI1825': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '9766'},
+    'PAR2840': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '10817'},
+    'IYJ1287': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '10898'},
+    'IYT3841': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '11560'},
+    'IYX4512': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '11652'},
+    'IZG6F20': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '11773'},
+    'IZG5E51': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '11774'},
+    'IZF8J81': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '11871'},
+    'IZF8E48': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '11873'},
+    'IYZ1G45': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '12300'},
+    'JBA3E79': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '12983'},
+    'JBA3E93': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '12984'},
+    'JBB8C49': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '13034'},
+    'JBW2C30': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '14068'},
+    'TQU0F72': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '14895'},
+    'TQX2C47': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': '15413'},
+    'EQP4956': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': 'EQP4956'},
+    'EQP5145': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': 'EQP5145'},
+    'EQP4449': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': ''},
+    'EQP4450': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': ''},
+    'EQP5496': {'cidade': 'Bagé', 'fracao': '46º BPM - BAGÉ', 'prefixo': ''},
+}
+
+MAPA_PREFIXOS_46BPM: Dict[str, Dict[str, str]] = {
+    v['prefixo']: v for v in MAPA_OFICIAL_VIATURAS_46BPM.values() if v.get('prefixo')
+}
+
+
+def normalizar_cidade_resumo(cid: str) -> str:
+    """Normaliza o nome da cidade para exibição padronizada na tabela lateral."""
+    c = (cid or '').strip().upper()
+    if c in ['EM', 'ESTADO MAIOR', 'ESTADO-MAIOR', '46º BPM - EM']:
+        return 'EM'
+    if 'BAGE' in c or 'BAGÉ' in c:
+        return 'Bagé'
+    if 'ACEGUA' in c or 'ACEGUÁ' in c:
+        return 'Aceguá'
+    if 'HULHA' in c:
+        return 'Hulha Negra'
+    if 'CANDIOTA' in c:
+        return 'Candiota'
+    if 'LAVRAS' in c:
+        return 'Lavras do Sul'
+    if 'PEDRAS' in c:
+        return 'Pedras Altas'
+    if 'PINHEIRO' in c:
+        return 'Pinheiro Machado'
+    if 'DOM PEDRITO' in c:
+        return 'Dom Pedrito'
+    return cid.strip().title() if cid else 'Outros'
+
+
+def obter_cidade_e_fracao_viatura(
+    placa: str,
+    prefixo: str = '',
+    cidade_hint: str = '',
+    fracao_hint: str = ''
+) -> Tuple[str, str]:
+    """
+    Retorna (cidade_resumo, fracao_label) infalível para qualquer viatura.
+    Prioriza o mapa oficial do 46º BPM por placa ou prefixo.
+    Se não estiver no mapa oficial, analisa cidade_hint e fracao_hint.
+    """
+    p_norm = normalizar_placa(placa)
+    pref_norm = normalizar_prefixo(prefixo)
+
+    info = MAPA_OFICIAL_VIATURAS_46BPM.get(p_norm)
+    if not info and pref_norm:
+        info = MAPA_PREFIXOS_46BPM.get(pref_norm)
+
+    if info:
+        cid_resumo = info['cidade']
+        frac_label = 'EM' if cid_resumo == 'EM' else cid_resumo.upper()
+        return cid_resumo, frac_label
+
+    # Fallback inteligente para viaturas externas
+    hint = f"{cidade_hint} {fracao_hint}".strip().upper()
+    if 'EM' in hint or 'ESTADO MAIOR' in hint or 'ESTADO-MAIOR' in hint:
+        return 'EM', 'EM'
+    for c_nome in ['Dom Pedrito', 'Lavras do Sul', 'Pinheiro Machado', 'Pedras Altas', 'Candiota', 'Aceguá', 'Hulha Negra', 'Bagé']:
+        if c_nome.upper() in hint:
+            return c_nome, c_nome.upper()
+
+    cid_norm = normalizar_cidade_resumo(cidade_hint or fracao_hint)
+    return cid_norm, cid_norm.upper()
+
+
 def extrair_placas_de_texto(texto: str) -> List[Dict[str, Any]]:
     """Extrai e normaliza uma lista de placas a partir de texto digitado ou colado."""
     if not texto:
@@ -227,11 +363,13 @@ def extrair_placas_de_texto(texto: str) -> List[Dict[str, Any]]:
         placa = normalizar_placa(item_limpo)
         if placa and len(placa) >= 5 and placa not in placas_vistas:
             placas_vistas.add(placa)
+            cid_resumo, frac_lbl = obter_cidade_e_fracao_viatura(placa)
             lista_veiculos.append({
                 'placa': placa,
                 'prefixo': '',
                 'modelo': '46º BPM',
-                'fracao': '46º BPM - Bagé',
+                'cidade_carga': cid_resumo,
+                'fracao': 'EM' if frac_lbl == 'EM' else f'46º BPM - {frac_lbl}',
                 'tipo_combustivel': 'Gasolina Comum'
             })
 
@@ -259,6 +397,7 @@ def processar_planilha_viaturas_alvo(caminho_ou_arquivo) -> List[Dict[str, Any]]
     col_placa = cols.get('placa')
     col_prefixo = cols.get('prefixo')
     col_modelo = cols.get('modelo')
+    col_cidade = cols.get('cidade')
     col_fracao = cols.get('fracao')
     col_comb = cols.get('tipo_combustivel')
 
@@ -291,11 +430,13 @@ def processar_planilha_viaturas_alvo(caminho_ou_arquivo) -> List[Dict[str, Any]]
     cabecalho_eh_placa = normalizar_placa(col_placa)
     linhas_extras = []
     if cabecalho_eh_placa and len(cabecalho_eh_placa) >= 6 and (cabecalho_eh_placa[:3].isalpha() or cabecalho_eh_placa[3:].isdigit()):
+        cid_resumo, frac_lbl = obter_cidade_e_fracao_viatura(cabecalho_eh_placa)
         linhas_extras.append({
             'placa': cabecalho_eh_placa,
             'prefixo': '',
             'modelo': '',
-            'fracao': '46º BPM',
+            'cidade_carga': cid_resumo,
+            'fracao': 'EM' if frac_lbl == 'EM' else f'46º BPM - {frac_lbl}',
             'tipo_combustivel': 'Gasolina Comum'
         })
 
@@ -310,17 +451,20 @@ def processar_planilha_viaturas_alvo(caminho_ou_arquivo) -> List[Dict[str, Any]]
         placa = normalizar_placa(row[col_placa]) if col_placa and pd.notna(row.get(col_placa)) else ""
         prefixo = normalizar_prefixo(row[col_prefixo]) if col_prefixo and pd.notna(row.get(col_prefixo)) else ""
         modelo = str(row.get(col_modelo, '')).strip() if col_modelo and pd.notna(row.get(col_modelo)) else ""
-        fracao = str(row.get(col_fracao, '46º BPM')).strip() if col_fracao and pd.notna(row.get(col_fracao)) else "46º BPM"
+        cidade_lida = str(row.get(col_cidade, '')).strip() if col_cidade and pd.notna(row.get(col_cidade)) else ""
+        fracao_lida = str(row.get(col_fracao, '')).strip() if col_fracao and pd.notna(row.get(col_fracao)) else ""
         tipo_comb = str(row.get(col_comb, 'Gasolina Comum')).strip() if col_comb and pd.notna(row.get(col_comb)) else "Gasolina Comum"
 
         if (placa or prefixo) and placa not in placas_vistas:
             if placa:
                 placas_vistas.add(placa)
+            cid_resumo, frac_lbl = obter_cidade_e_fracao_viatura(placa, prefixo, cidade_lida, fracao_lida)
             lista_veiculos.append({
                 'placa': placa,
                 'prefixo': prefixo,
                 'modelo': modelo,
-                'fracao': fracao,
+                'cidade_carga': cid_resumo,
+                'fracao': 'EM' if frac_lbl == 'EM' else f"46º BPM - {frac_lbl}",
                 'tipo_combustivel': tipo_comb
             })
 
@@ -895,29 +1039,6 @@ MESES_PT = {
 }
 
 
-def normalizar_cidade_resumo(cid: str) -> str:
-    """Normaliza o nome da cidade para exibição padronizada na tabela lateral."""
-    c = (cid or '').strip().upper()
-    if c in ['EM', 'ESTADO MAIOR', 'ESTADO-MAIOR', '46º BPM - EM']:
-        return 'EM'
-    if 'BAGE' in c or 'BAGÉ' in c:
-        return 'Bagé'
-    if 'ACEGUA' in c or 'ACEGUÁ' in c:
-        return 'Aceguá'
-    if 'HULHA' in c:
-        return 'Hulha Negra'
-    if 'CANDIOTA' in c:
-        return 'Candiota'
-    if 'LAVRAS' in c:
-        return 'Lavras do Sul'
-    if 'PEDRAS' in c:
-        return 'Pedras Altas'
-    if 'PINHEIRO' in c:
-        return 'Pinheiro Machado'
-    if 'DOM PEDRITO' in c:
-        return 'Dom Pedrito'
-    return cid.strip().title() if cid else 'Outros'
-
 
 def detectar_nome_arquivo_crpmfo(datas_encontradas: List[Any], data_fallback: Optional[datetime] = None) -> str:
     """
@@ -1073,15 +1194,12 @@ def gerar_planilha_consolidada_estado_e_plan2(
         if not valores:
             continue
 
-        cid_raw = v_obj.get('cidade_carga') or v_obj.get('fracao') or 'BAGÉ'
-        frac_raw = v_obj.get('fracao') or ''
-
-        if frac_raw == 'EM' or cid_raw.strip().upper() == 'EM':
-            fracao_label = 'EM'
-            cidade_resumo = 'EM'
-        else:
-            cidade_resumo = normalizar_cidade_resumo(cid_raw)
-            fracao_label = cidade_resumo.upper()
+        cidade_resumo, fracao_label = obter_cidade_e_fracao_viatura(
+            p_norm,
+            v_obj.get('prefixo', ''),
+            v_obj.get('cidade_carga', ''),
+            v_obj.get('fracao', '')
+        )
 
         tot_placa = sum(valores)
         cidades_totais[cidade_resumo] = cidades_totais.get(cidade_resumo, 0.0) + tot_placa
@@ -1102,11 +1220,13 @@ def gerar_planilha_consolidada_estado_e_plan2(
         # 2 linhas em branco de espaçamento após cada viatura
         cur_row = end_r + 3
 
-    # Linha Total Geral das Viaturas
-    total_row = cur_row - 2
+    # Linha Total Geral das Viaturas (Colunas A e C)
+    total_row = max(2, cur_row - 2)
     grand_total = sum(cidades_totais.values())
-    ws2.cell(row=total_row, column=1, value="total")
+    c_tot_label = ws2.cell(row=total_row, column=1, value="total")
+    c_tot_label.font = Font(bold=True)
     c_gtot = ws2.cell(row=total_row, column=3, value=round(grand_total, 2))
+    c_gtot.font = Font(bold=True)
     c_gtot.number_format = '#,##0.00'
 
     # Tabela Lateral Consolidada (Colunas F e G)
@@ -1129,8 +1249,11 @@ def gerar_planilha_consolidada_estado_e_plan2(
         c_ctot.number_format = '#,##0.00'
         side_r += 1
 
-    # Total geral da tabela lateral
+    # Total geral da tabela lateral (Colunas F e G)
+    c_side_tot_lbl = ws2.cell(row=side_r, column=6, value="Total")
+    c_side_tot_lbl.font = Font(bold=True)
     c_gtot2 = ws2.cell(row=side_r, column=7, value=round(grand_total, 2))
+    c_gtot2.font = Font(bold=True)
     c_gtot2.number_format = '#,##0.00'
 
     # Ajuste de larguras de coluna da Plan2

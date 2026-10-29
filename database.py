@@ -561,11 +561,18 @@ def salvar_veiculos_alvo(lista_veiculos: List[Dict[str, Any]]) -> int:
             continue
         prefixo = str(v.get('prefixo', '')).strip()
         modelo = str(v.get('modelo', '')).strip()
-        fracao = str(v.get('fracao', '46º BPM')).strip()
+        fracao = str(v.get('fracao', '')).strip()
         tipo_comb = str(v.get('tipo_combustivel', 'Gasolina Comum')).strip()
-
         marca = str(v.get('marca', '')).strip()
-        cidade_carga = str(v.get('cidade_carga', 'Bagé')).strip()
+        cidade_carga = str(v.get('cidade_carga', '')).strip()
+
+        # Determina cidade e fração oficiais para não cair em padrão genérico
+        from services.excel_processor import obter_cidade_e_fracao_viatura
+        cid_resumo, frac_lbl = obter_cidade_e_fracao_viatura(placa, prefixo, cidade_carga, fracao)
+        if not cidade_carga or cidade_carga.lower() in ('bagé', 'bage', '46º bpm'):
+            cidade_carga = cid_resumo
+        if not fracao or fracao == '46º BPM':
+            fracao = 'EM' if frac_lbl == 'EM' else f"46º BPM - {frac_lbl}"
 
         cursor.execute('''
             INSERT INTO veiculos_alvo (placa, prefixo, marca, modelo, cidade_carga, fracao, tipo_combustivel, ativo)
@@ -1510,7 +1517,7 @@ def popular_viaturas_padrao_46bpm():
         ('11042', 'IYJ6447', 'TOYOTA', 'COROLLA XEI 2.0', 'EM', '6035 7404 2195 6258', 'Gasolina Comum'),
         ('11375', 'IUX9E18', 'CHEVROLET', 'S10 LTZ FD2', 'EM', '6035 7404 2196 8436', 'Diesel S10'),
         ('11489', 'IYS9069', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'EM', '6035 7404 2199 1024', 'Gasolina Comum'),
-        ('11509', 'IYS9341', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'BAGÉ', '6035 7404 2195 4105', 'Gasolina Comum'),
+        ('11509', 'IYS9341', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'PINHEIRO MACHADO', '6035 7404 2195 4105', 'Gasolina Comum'),
         ('11560', 'IYT3841', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'BAGÉ', '6035 7404 4325 1514', 'Gasolina Comum'),
         ('11565', 'IYT3896', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'LAVRAS DO SUL', '6035 7404 2196 7222', 'Gasolina Comum'),
         ('11652', 'IYX4512', 'YAMAHA', 'LANDER XTZ 250', 'BAGÉ', '6035 7404 2199 9878', 'Gasolina Comum'),
