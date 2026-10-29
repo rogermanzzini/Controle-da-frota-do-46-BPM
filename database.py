@@ -571,8 +571,8 @@ def salvar_veiculos_alvo(lista_veiculos: List[Dict[str, Any]]) -> int:
         cid_resumo, frac_lbl = obter_cidade_e_fracao_viatura(placa, prefixo, cidade_carga, fracao)
         if not cidade_carga or cidade_carga.lower() in ('bagé', 'bage', '46º bpm'):
             cidade_carga = cid_resumo
-        if not fracao or fracao == '46º BPM':
-            fracao = 'EM' if frac_lbl == 'EM' else f"46º BPM - {frac_lbl}"
+        if not fracao or fracao in ('46º BPM', 'EM'):
+            fracao = '46º BPM - EM' if (frac_lbl == 'EM' or cid_resumo == 'EM') else f"46º BPM - {frac_lbl}"
 
         cursor.execute('''
             INSERT INTO veiculos_alvo (placa, prefixo, marca, modelo, cidade_carga, fracao, tipo_combustivel, ativo)
@@ -624,7 +624,10 @@ def obter_veiculos_com_abastecimento(importacao_id: Optional[int] = None) -> Lis
             a.placa,
             COALESCE(v.prefixo, a.prefixo, a.placa) as prefixo,
             COALESCE(v.modelo, a.modelo, 'Não informado') as modelo,
-            COALESCE(v.fracao, a.fracao, '46º BPM') as fracao,
+            CASE 
+                WHEN COALESCE(v.fracao, a.fracao, '') IN ('EM', '46º BPM - EM') THEN '46º BPM - EM'
+                ELSE COALESCE(v.fracao, a.fracao, '46º BPM')
+            END as fracao,
             COUNT(a.id) as total_abastecimentos
         FROM abastecimentos a
         LEFT JOIN veiculos_alvo v ON a.placa = v.placa
@@ -769,7 +772,10 @@ def obter_resumo_por_viatura(importacao_id: Optional[int] = None) -> List[Dict[s
             a.placa,
             COALESCE(v.prefixo, a.prefixo) as prefixo,
             COALESCE(v.modelo, a.modelo, 'Não informado') as modelo,
-            COALESCE(v.fracao, a.fracao, '46º BPM') as fracao,
+            CASE 
+                WHEN COALESCE(v.fracao, a.fracao, '') IN ('EM', '46º BPM - EM') THEN '46º BPM - EM'
+                ELSE COALESCE(v.fracao, a.fracao, '46º BPM')
+            END as fracao,
             COUNT(a.id) as qtd_abastecimentos,
             MIN(a.odometro) as km_inicial,
             MAX(a.odometro) as km_final,
@@ -1551,7 +1557,7 @@ def popular_viaturas_padrao_46bpm():
         ('15853', 'MJM4J78', 'VOLKSWAGEN', 'SAVEIRO', 'EM', '6035 7404 5595 8157', 'Gasolina Comum')
     ]
     for pref, placa, marca, mod, cidade, cartao, combustivel in frota_oficial:
-        fracao_val = 'EM' if cidade == 'EM' else f"46º BPM - {cidade}"
+        fracao_val = '46º BPM - EM' if cidade == 'EM' else f"46º BPM - {cidade}"
         cursor.execute('''
             INSERT INTO veiculos_alvo (prefixo, placa, marca, modelo, cidade_carga, cartao_abastecimento, fracao, tipo_combustivel, ativo)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
@@ -1565,6 +1571,11 @@ def popular_viaturas_padrao_46bpm():
                 tipo_combustivel = excluded.tipo_combustivel,
                 ativo = 1
         ''', (pref, placa, marca, mod, cidade, cartao, fracao_val, combustivel))
+
+    # Sincroniza qualquer registro legado que contenha apenas 'EM' para '46º BPM - EM'
+    cursor.execute("UPDATE veiculos_alvo SET fracao = '46º BPM - EM' WHERE fracao = 'EM' OR cidade_carga = 'EM'")
+    cursor.execute("UPDATE abastecimentos SET fracao = '46º BPM - EM' WHERE fracao = 'EM'")
+
     conn.commit()
     conn.close()
 

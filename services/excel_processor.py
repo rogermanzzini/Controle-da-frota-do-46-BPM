@@ -216,12 +216,12 @@ def carregar_planilha_excel(caminho_ou_arquivo) -> pd.DataFrame:
 
 MAPA_OFICIAL_VIATURAS_46BPM: Dict[str, Dict[str, str]] = {
     # EM (Estado Maior - 6 viaturas)
-    'IVB4468': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '9532'},
-    'IYJ6447': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '11042'},
-    'IUX9E18': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '11375'},
-    'IYS9069': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '11489'},
-    'IZG6F14': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '11772'},
-    'MJM4J78': {'cidade': 'EM', 'fracao': 'EM', 'prefixo': '15853'},
+    'IVB4468': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '9532'},
+    'IYJ6447': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '11042'},
+    'IUX9E18': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '11375'},
+    'IYS9069': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '11489'},
+    'IZG6F14': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '11772'},
+    'MJM4J78': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '15853'},
 
     # DOM PEDRITO (6 viaturas)
     'IYJ6493': {'cidade': 'Dom Pedrito', 'fracao': '46º BPM - DOM PEDRITO', 'prefixo': '11041'},
@@ -369,7 +369,7 @@ def extrair_placas_de_texto(texto: str) -> List[Dict[str, Any]]:
                 'prefixo': '',
                 'modelo': '46º BPM',
                 'cidade_carga': cid_resumo,
-                'fracao': 'EM' if frac_lbl == 'EM' else f'46º BPM - {frac_lbl}',
+                'fracao': '46º BPM - EM' if frac_lbl == 'EM' else f'46º BPM - {frac_lbl}',
                 'tipo_combustivel': 'Gasolina Comum'
             })
 
@@ -436,7 +436,7 @@ def processar_planilha_viaturas_alvo(caminho_ou_arquivo) -> List[Dict[str, Any]]
             'prefixo': '',
             'modelo': '',
             'cidade_carga': cid_resumo,
-            'fracao': 'EM' if frac_lbl == 'EM' else f'46º BPM - {frac_lbl}',
+            'fracao': '46º BPM - EM' if frac_lbl == 'EM' else f'46º BPM - {frac_lbl}',
             'tipo_combustivel': 'Gasolina Comum'
         })
 
@@ -464,7 +464,7 @@ def processar_planilha_viaturas_alvo(caminho_ou_arquivo) -> List[Dict[str, Any]]
                 'prefixo': prefixo,
                 'modelo': modelo,
                 'cidade_carga': cid_resumo,
-                'fracao': 'EM' if frac_lbl == 'EM' else f"46º BPM - {frac_lbl}",
+                'fracao': '46º BPM - EM' if frac_lbl == 'EM' else f"46º BPM - {frac_lbl}",
                 'tipo_combustivel': tipo_comb
             })
 
@@ -806,7 +806,7 @@ def gerar_relatorio_excel_openpyxl(
 
     # Tabela de Veículos
     colunas_resumo = [
-        "Prefixo", "Placa", "Modelo", "Fração/Lotação", "Abastecimentos",
+        "Prefixo", "Placa", "Modelo", "Fração", "Abastecimentos",
         "Km Inicial", "Km Final", "Km Percorrido", "Litros Totais",
         "Consumo Médio (km/l)", "Valor Total (R$)", "Custo (R$/km)", "Alertas"
     ]
