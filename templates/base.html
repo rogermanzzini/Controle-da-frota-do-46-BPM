@@ -112,9 +112,18 @@
                 {% endif %}
 
                 <div class="d-flex align-items-center gap-2">
-                    <a href="{{ url_for('exportar_excel') }}" class="btn btn-outline-success btn-sm px-3 fw-semibold">
-                        <i class="fa-solid fa-file-excel me-1"></i> Exportar Excel (.xlsx)
-                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('exportar_excel_consolidado') }}" class="btn btn-outline-success btn-sm px-3 fw-semibold" title="Baixar Planilha Consolidada Estado + Plan2 (AO CRPMFO)">
+                            <i class="fa-solid fa-file-excel me-1"></i> Planilha AO CRPMFO
+                        </a>
+                        <button type="button" class="btn btn-outline-success btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span class="visually-hidden">Mais opções</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow">
+                            <li><a class="dropdown-item fw-semibold text-success" href="{{ url_for('exportar_excel_consolidado') }}"><i class="fa-solid fa-file-excel me-2"></i>Estado + Plan2 (AO CRPMFO)</a></li>
+                            <li><a class="dropdown-item text-light" href="{{ url_for('exportar_excel') }}"><i class="fa-solid fa-table me-2"></i>Relatório Executivo 46º BPM</a></li>
+                        </ul>
+                    </div>
 
                     <div class="dropdown">
                         <button class="btn btn-tactical-outline btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">

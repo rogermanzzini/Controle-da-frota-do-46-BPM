@@ -1500,27 +1500,27 @@ def popular_viaturas_padrao_46bpm():
     cursor = conn.cursor()
     frota_oficial = [
         ('7879', 'JBM3576', 'AGRALE', 'MA 12.0 MAXIBUS MC', 'BAGÉ', '6035 7404 2195 1978', 'Diesel S10'),
-        ('9532', 'IVB4468', 'NISSAN', 'FRONTIER SVATK 4X4', 'BAGÉ', '6035 7404 2197 5738', 'Diesel S10'),
+        ('9532', 'IVB4468', 'NISSAN', 'FRONTIER SVATK 4X4', 'EM', '6035 7404 2197 5738', 'Diesel S10'),
         ('9565', 'IVB4F30', 'NISSAN', 'FRONTIER SVATK 4X4', 'BAGÉ', '6035 7404 4017 7696', 'Diesel S10'),
         ('9583', 'IVA4820', 'MARCOPOLO', 'VOLARE W8 ON', 'BAGÉ', '6035 7404 2198 0068', 'Diesel S10'),
         ('9766', 'IVI1825', 'YAMAHA', 'LANDER XTZ 250', 'BAGÉ', '6035 7404 2198 7295', 'Gasolina Comum'),
         ('10817', 'PAR2840', 'CHEVROLET', 'S10 LT DD4', 'BAGÉ', '6035 7404 2197 5290', 'Diesel S10'),
         ('10898', 'IYJ1287', 'TOYOTA', 'HILUX CDSRVA4GF', 'BAGÉ', '6035 7404 2199 2345', 'Diesel S10'),
         ('11041', 'IYJ6493', 'TOYOTA', 'COROLLA XEI 2.0', 'DOM PEDRITO', '6035 7404 2197 2784', 'Gasolina Comum'),
-        ('11042', 'IYJ6447', 'TOYOTA', 'COROLLA XEI 2.0', 'BAGÉ', '6035 7404 2195 6258', 'Gasolina Comum'),
-        ('11375', 'IUX9E18', 'CHEVROLET', 'S10 LTZ FD2', 'BAGÉ', '6035 7404 2196 8436', 'Diesel S10'),
-        ('11489', 'IYS9069', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'BAGÉ', '6035 7404 2199 1024', 'Gasolina Comum'),
-        ('11509', 'IYS9341', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'PINHEIRO MACHADO', '6035 7404 2195 4105', 'Gasolina Comum'),
+        ('11042', 'IYJ6447', 'TOYOTA', 'COROLLA XEI 2.0', 'EM', '6035 7404 2195 6258', 'Gasolina Comum'),
+        ('11375', 'IUX9E18', 'CHEVROLET', 'S10 LTZ FD2', 'EM', '6035 7404 2196 8436', 'Diesel S10'),
+        ('11489', 'IYS9069', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'EM', '6035 7404 2199 1024', 'Gasolina Comum'),
+        ('11509', 'IYS9341', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'BAGÉ', '6035 7404 2195 4105', 'Gasolina Comum'),
         ('11560', 'IYT3841', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'BAGÉ', '6035 7404 4325 1514', 'Gasolina Comum'),
         ('11565', 'IYT3896', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'LAVRAS DO SUL', '6035 7404 2196 7222', 'Gasolina Comum'),
         ('11652', 'IYX4512', 'YAMAHA', 'LANDER XTZ 250', 'BAGÉ', '6035 7404 2199 9878', 'Gasolina Comum'),
-        ('11772', 'IZG6F14', 'TOYOTA', 'HILUX CDSRVA2GF', 'BAGÉ', '6035 7404 2199 5926', 'Diesel S10'),
+        ('11772', 'IZG6F14', 'TOYOTA', 'HILUX CDSRVA2GF', 'EM', '6035 7404 2199 5926', 'Diesel S10'),
         ('11773', 'IZG6F20', 'TOYOTA', 'HILUX CDSRVA2GF', 'BAGÉ', '6035 7404 2198 8418', 'Diesel S10'),
         ('11774', 'IZG5E51', 'TOYOTA', 'HILUX CDSRVA2GF', 'BAGÉ', '6035 7404 2198 6156', 'Diesel S10'),
         ('11829', 'IZF4J45', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'DOM PEDRITO', '6035 7404 2196 4567', 'Gasolina Comum'),
         ('11871', 'IZF8J81', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'BAGÉ', '6035 7404 2198 7535', 'Gasolina Comum'),
         ('11873', 'IZF8E48', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'BAGÉ', '6036 7404 2198 7592', 'Gasolina Comum'),
-        ('12241', 'IZP1E09', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'BAGÉ', '6035 7404 2198 8434', 'Gasolina Comum'),
+        ('12241', 'IZP1E09', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'DOM PEDRITO', '6035 7404 2198 8434', 'Gasolina Comum'),
         ('12300', 'IYZ1G45', 'REBOQUE', 'PREMIUM FLASH', 'BAGÉ', '', 'Outro'),
         ('12983', 'JBA3E79', 'RENAULT', 'DUSTER ZEN 16', 'BAGÉ', '6035 7404 4946 3899', 'Gasolina Comum'),
         ('12984', 'JBA3E93', 'RENAULT', 'DUSTER ZEN 16', 'BAGÉ', '6035 7404 2362 3765', 'Gasolina Comum'),
@@ -1541,9 +1541,10 @@ def popular_viaturas_padrao_46bpm():
         ('15025', 'TQW1H19', 'TOYOTA', 'HILUX', 'ACEGUÁ', '6035 7404 5177 3763', 'Diesel S10'),
         ('15413', 'TQX2C47', 'TOYOTA', 'COROLLA CROSS', 'BAGÉ', '6035 7407 5260 1112', 'Gasolina Comum'),
         ('15492', 'TQZ0B89', 'TOYOTA', 'COROLLA CROSS', 'PEDRAS ALTAS', '6035 7404 5272 6836', 'Gasolina Comum'),
-        ('15853', 'MJM4J78', 'VOLKSWAGEN', 'SAVEIRO', 'BAGÉ', '6035 7404 5595 8157', 'Gasolina Comum')
+        ('15853', 'MJM4J78', 'VOLKSWAGEN', 'SAVEIRO', 'EM', '6035 7404 5595 8157', 'Gasolina Comum')
     ]
     for pref, placa, marca, mod, cidade, cartao, combustivel in frota_oficial:
+        fracao_val = 'EM' if cidade == 'EM' else f"46º BPM - {cidade}"
         cursor.execute('''
             INSERT INTO veiculos_alvo (prefixo, placa, marca, modelo, cidade_carga, cartao_abastecimento, fracao, tipo_combustivel, ativo)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
@@ -1556,7 +1557,7 @@ def popular_viaturas_padrao_46bpm():
                 fracao = excluded.fracao,
                 tipo_combustivel = excluded.tipo_combustivel,
                 ativo = 1
-        ''', (pref, placa, marca, mod, cidade, cartao, f"46º BPM - {cidade}", combustivel))
+        ''', (pref, placa, marca, mod, cidade, cartao, fracao_val, combustivel))
     conn.commit()
     conn.close()
 

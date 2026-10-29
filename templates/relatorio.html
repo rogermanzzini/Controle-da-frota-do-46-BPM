@@ -12,13 +12,22 @@
             Dados filtrados e calculados exclusivamente para os veículos monitorados do 46º BPM (Bagé).
         </p>
     </div>
-    <div class="col-md-5 text-md-end mt-3 mt-md-0 d-flex gap-2 justify-content-md-end">
+    <div class="col-md-6 text-md-end mt-3 mt-md-0 d-flex flex-wrap gap-2 justify-content-md-end align-items-center">
         <button type="button" class="btn btn-warning px-3 fw-bold text-dark shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestado">
-            <i class="fa-solid fa-file-signature me-1"></i> Atestado de Combustíveis (PDF)
+            <i class="fa-solid fa-file-signature me-1"></i> Atestado (PDF)
         </button>
-        <a href="{{ url_for('exportar_excel') }}" class="btn btn-success px-3 fw-semibold">
-            <i class="fa-solid fa-file-excel me-1"></i> Baixar Planilha Formatada (.xlsx)
-        </a>
+        <div class="btn-group shadow-sm">
+            <a href="{{ url_for('exportar_excel_consolidado') }}" class="btn btn-success fw-bold px-3" title="Baixa o arquivo contendo os abastecimentos de todo estado e a Plan2 de conferência do 46º BPM">
+                <i class="fa-solid fa-file-excel me-1"></i> Planilha Estado + Plan2 (AO CRPMFO)
+            </a>
+            <button type="button" class="btn btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="visually-hidden">Opções de download</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow">
+                <li><a class="dropdown-item fw-semibold text-success" href="{{ url_for('exportar_excel_consolidado') }}"><i class="fa-solid fa-file-excel me-2"></i>Estado + Plan2 (AO CRPMFO)</a></li>
+                <li><a class="dropdown-item text-light" href="{{ url_for('exportar_excel') }}"><i class="fa-solid fa-table me-2"></i>Relatório Executivo 46º BPM</a></li>
+            </ul>
+        </div>
         <button onclick="window.print()" class="btn btn-tactical-outline btn-sm px-3">
             <i class="fa-solid fa-print me-1"></i> Imprimir
         </button>

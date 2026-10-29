@@ -12,17 +12,26 @@
             Acompanhamento de abastecimentos e eficiência energética das viaturas do 46º BPM.
         </p>
     </div>
-    <div class="col-md-5 text-md-end mt-3 mt-md-0 d-flex gap-2 justify-content-md-end">
+    <div class="col-md-7 text-md-end mt-3 mt-md-0 d-flex flex-wrap gap-2 justify-content-md-end align-items-center">
         <a href="{{ url_for('upload_page') }}" class="btn btn-primary px-3 fw-semibold">
             <i class="fa-solid fa-cloud-arrow-up me-1"></i> Nova Importação
         </a>
-        <a href="{{ url_for('exportar_excel') }}" class="btn btn-success px-3 fw-semibold">
-            <i class="fa-solid fa-file-excel me-1"></i> Baixar Relatório
-        </a>
+        <div class="btn-group shadow-sm">
+            <a href="{{ url_for('exportar_excel_consolidado') }}" class="btn btn-success fw-bold px-3" title="Baixa o arquivo contendo os abastecimentos de todo estado e a Plan2 de conferência do 46º BPM">
+                <i class="fa-solid fa-file-excel me-1"></i> Planilha Estado + Plan2 (AO CRPMFO)
+            </a>
+            <button type="button" class="btn btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="visually-hidden">Opções de download</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow">
+                <li><a class="dropdown-item fw-semibold text-success" href="{{ url_for('exportar_excel_consolidado') }}"><i class="fa-solid fa-file-excel me-2"></i>Estado + Plan2 (AO CRPMFO)</a></li>
+                <li><a class="dropdown-item text-light" href="{{ url_for('exportar_excel') }}"><i class="fa-solid fa-table me-2"></i>Relatório Executivo 46º BPM</a></li>
+            </ul>
+        </div>
         <button type="button" class="btn btn-warning px-3 fw-bold text-dark shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestado">
-            <i class="fa-solid fa-file-signature me-1"></i> Atestado de Combustíveis (PDF)
+            <i class="fa-solid fa-file-signature me-1"></i> Atestado (PDF)
         </button>
-</div>
+    </div>
 
 <!-- Painel Destacado: Inserir Planilha Excel -->
 <div class="card card-tactical mb-4 border border-2 border-primary shadow">

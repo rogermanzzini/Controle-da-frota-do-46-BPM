@@ -17,6 +17,7 @@ from services.excel_processor import (
     processar_planilha_viaturas_alvo,
     processar_cruzamento_abastecimentos,
     gerar_relatorio_excel_openpyxl,
+    gerar_planilha_consolidada_estado_e_plan2,
     extrair_placas_de_texto
 )
 from services.sample_generator import gerar_planilhas_exemplo
@@ -421,6 +422,18 @@ def processar_arquivos():
             df_resumo.to_dict('records')
         )
 
+        # Gerar também a planilha consolidada oficial do Estado + Plan2 (Padrão AO CRPMFO)
+        try:
+            caminho_cons, nome_cons = gerar_planilha_consolidada_estado_e_plan2(
+                caminho_rs,
+                lista_veiculos_alvo,
+                REPORTS_FOLDER
+            )
+            session['ultimo_arquivo_consolidado'] = caminho_cons
+            session['ultimo_nome_consolidado'] = nome_cons
+        except Exception as err_cons:
+            print(f"Aviso ao gerar planilha consolidada AO CRPMFO: {err_cons}")
+
         flash(f'Processamento concluído com sucesso! {meta["total_filtrado"]} abastecimentos identificados para {meta["total_veiculos"]} viaturas do 46º BPM.', 'success')
         return redirect(url_for('relatorio'))
 
@@ -576,6 +589,63 @@ def exportar_excel():
         download_name=f"Relatorio_Consumo_46BPM_Bage_{datetime.now().strftime('%Y%m%d')}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+
+@app.route('/exportar-excel-consolidado')
+@login_required
+def exportar_excel_consolidado():
+    """Gera e faz o download da planilha consolidada oficial (Abastecimentos do Estado + Plan2 - Padrão AO CRPMFO)."""
+    # 1. Se já existir arquivo consolidado recente na sessão
+    caminho = session.get('ultimo_arquivo_consolidado')
+    nome_download = session.get('ultimo_nome_consolidado')
+    if caminho and os.path.exists(caminho):
+        return send_file(
+            caminho,
+            as_attachment=True,
+            download_name=nome_download or os.path.basename(caminho),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    # 2. Localizar o arquivo de abastecimentos do RS mais recente na pasta uploads
+    arquivos_rs = sorted(
+        [os.path.join(UPLOAD_FOLDER, f) for f in os.listdir(UPLOAD_FOLDER) if f.lower().endswith(('.xls', '.xlsx')) and not f.startswith('.')],
+        key=os.path.getmtime,
+        reverse=True
+    )
+    if not arquivos_rs:
+        # Tenta na pasta exemplos como fallback
+        exemplos_rs = [os.path.join(EXEMPLOS_FOLDER, f) for f in os.listdir(EXEMPLOS_FOLDER) if 'rs' in f.lower() and f.endswith(('.xls', '.xlsx'))]
+        if exemplos_rs:
+            arquivos_rs = exemplos_rs
+
+    if not arquivos_rs:
+        flash('Nenhuma planilha de abastecimentos do estado foi encontrada para gerar o arquivo consolidado.', 'warning')
+        return redirect(url_for('relatorio'))
+
+    ultimo_rs = arquivos_rs[0]
+    viaturas = database.obter_veiculos_alvo()
+    if not viaturas:
+        database.popular_viaturas_padrao_46bpm()
+        viaturas = database.obter_veiculos_alvo()
+
+    try:
+        caminho_gerado, nome_gerado = gerar_planilha_consolidada_estado_e_plan2(
+            ultimo_rs,
+            viaturas,
+            REPORTS_FOLDER
+        )
+        session['ultimo_arquivo_consolidado'] = caminho_gerado
+        session['ultimo_nome_consolidado'] = nome_gerado
+
+        return send_file(
+            caminho_gerado,
+            as_attachment=True,
+            download_name=nome_gerado,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        flash(f'Erro ao gerar planilha consolidada AO CRPMFO: {str(e)}', 'danger')
+        return redirect(url_for('relatorio'))
 
 
 @app.route('/carregar-dados-demonstracao', methods=['POST'])

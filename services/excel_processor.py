@@ -881,3 +881,265 @@ def gerar_relatorio_excel_openpyxl(
     # Salva o arquivo gerado
     wb.save(caminho_saida)
     return caminho_saida
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PLANILHA CONSOLIDADA DO ESTADO + PLAN2 DE CONFERÊNCIA (PADRÃO AO CRPMFO)
+# ═════════════════════════════════════════════════════════════════════════════
+
+MESES_PT = {
+    1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+    5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+    9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+}
+
+
+def normalizar_cidade_resumo(cid: str) -> str:
+    """Normaliza o nome da cidade para exibição padronizada na tabela lateral."""
+    c = (cid or '').strip().upper()
+    if c in ['EM', 'ESTADO MAIOR', 'ESTADO-MAIOR', '46º BPM - EM']:
+        return 'EM'
+    if 'BAGE' in c or 'BAGÉ' in c:
+        return 'Bagé'
+    if 'ACEGUA' in c or 'ACEGUÁ' in c:
+        return 'Aceguá'
+    if 'HULHA' in c:
+        return 'Hulha Negra'
+    if 'CANDIOTA' in c:
+        return 'Candiota'
+    if 'LAVRAS' in c:
+        return 'Lavras do Sul'
+    if 'PEDRAS' in c:
+        return 'Pedras Altas'
+    if 'PINHEIRO' in c:
+        return 'Pinheiro Machado'
+    if 'DOM PEDRITO' in c:
+        return 'Dom Pedrito'
+    return cid.strip().title() if cid else 'Outros'
+
+
+def detectar_nome_arquivo_crpmfo(datas_encontradas: List[Any], data_fallback: Optional[datetime] = None) -> str:
+    """
+    Determina o nome oficial do arquivo baseado na quinzena e mês:
+    'Relatório da {1|2}ª quinzena de {Mês} - AO CRPMFO.xlsx'
+    """
+    data_ref = None
+    if datas_encontradas:
+        # Pega a data máxima válida do lote
+        data_ref = max(datas_encontradas)
+    if not data_ref or not isinstance(data_ref, (datetime, pd.Timestamp)):
+        data_ref = data_fallback or datetime.now()
+
+    quinzena = 1 if data_ref.day <= 15 else 2
+    mes_nome = MESES_PT.get(data_ref.month, 'Mês')
+    return f"Relatório da {quinzena}ª quinzena de {mes_nome} - AO CRPMFO.xlsx"
+
+
+def gerar_planilha_consolidada_estado_e_plan2(
+    caminho_arquivo_rs: str,
+    viaturas_alvo: List[Dict[str, Any]],
+    pasta_destino: str
+) -> Tuple[str, str]:
+    """
+    Gera na mesma planilha:
+    - Aba 1: Os abastecimentos brutos de todo o estado do RS (todas as linhas e colunas originais).
+    - Aba 2: 'Plan2', contendo a conferência do 46º BPM:
+      - Placa e valores individuais de cada abastecimento
+      - Total da viatura e Fração/Cidade
+      - 2 linhas em branco de espaçamento entre cada viatura
+      - Linha final com 'total' e a soma geral
+      - Tabela lateral com o resumo consolidado por Fração/Cidade e Total Geral
+    Retorna (caminho_completo_arquivo, nome_arquivo_formatado).
+    """
+    ext = os.path.splitext(caminho_arquivo_rs)[1].lower()
+    linhas_brutas = []
+    nome_aba_original = "RFCVTITULO"
+    datas_lote = []
+
+    # 1. Carregar linhas da planilha estadual
+    if ext == '.xls':
+        try:
+            import xlrd
+            wb_src = xlrd.open_workbook(caminho_arquivo_rs)
+            s_src = wb_src.sheet_by_name(wb_src.sheet_names()[0])
+            nome_aba_original = s_src.name
+            for r in range(s_src.nrows):
+                row_vals = [s_src.cell_value(r, c) for c in range(s_src.ncols)]
+                linhas_brutas.append(row_vals)
+                if r > 0 and s_src.ncols > 4:
+                    d_raw = s_src.cell_value(r, 4)
+                    if isinstance(d_raw, (int, float)):
+                        try:
+                            datas_lote.append(xlrd.xldate_as_datetime(d_raw, wb_src.datemode))
+                        except Exception:
+                            pass
+        except Exception as e:
+            print(f"Aviso ao ler com xlrd: {e}")
+
+    if not linhas_brutas:
+        # Fallback para openpyxl ou pandas
+        try:
+            wb_src = openpyxl.load_workbook(caminho_arquivo_rs, data_only=True)
+            s_src = wb_src.active
+            nome_aba_original = s_src.title
+            for row in s_src.iter_rows(values_only=True):
+                linhas_brutas.append(list(row))
+        except Exception:
+            df = carregar_planilha_excel(caminho_arquivo_rs)
+            nome_aba_original = "Abastecimentos_RS"
+            linhas_brutas = [list(df.columns)] + df.values.tolist()
+
+    if not linhas_brutas:
+        raise ValueError("Não foi possível extrair dados da planilha do estado.")
+
+    # 2. Localizar índices das colunas Placa, Valor e Data/Hora no cabeçalho
+    cabecalho = [str(c or '').strip().lower() for c in linhas_brutas[0]]
+    idx_placa = 1
+    idx_valor = 15
+
+    for i, col_txt in enumerate(cabecalho):
+        if 'placa' in col_txt:
+            idx_placa = i
+            break
+
+    for i, col_txt in enumerate(cabecalho):
+        if col_txt in ['valor', 'total', 'valor total', 'valor_total', 'vl_total']:
+            idx_valor = i
+            break
+
+    # Se não coletou datas pelo xlrd, tentar coletar da coluna de data
+    if not datas_lote:
+        idx_data = -1
+        for i, col_txt in enumerate(cabecalho):
+            if any(k in col_txt for k in ['data', 'dt_abast', 'data/hora']):
+                idx_data = i
+                break
+        if idx_data >= 0:
+            for row in linhas_brutas[1:1000]:
+                if len(row) > idx_data and row[idx_data]:
+                    val_d = str(row[idx_data])
+                    m = re.search(r'(\d{2})/(\d{2})/(20\d{2})', val_d)
+                    if m:
+                        try:
+                            datas_lote.append(datetime(int(m.group(3)), int(m.group(2)), int(m.group(1))))
+                        except Exception:
+                            pass
+
+    # 3. Mapear abastecimentos por placa na planilha estadual
+    abast_por_placa: Dict[str, List[float]] = {}
+    for r in linhas_brutas[1:]:
+        if len(r) > idx_placa and r[idx_placa]:
+            p = normalizar_placa(r[idx_placa])
+            if p:
+                v_num = 0.0
+                if len(r) > idx_valor and r[idx_valor] is not None:
+                    v_num = limpar_numero(r[idx_valor])
+                abast_por_placa.setdefault(p, []).append(v_num)
+
+    # 4. Criar o novo workbook com as duas abas
+    wb_out = openpyxl.Workbook()
+
+    # Aba 1: Abastecimentos de todo o estado
+    ws1 = wb_out.active
+    ws1.title = nome_aba_original[:31]
+    ws1.views.sheetView[0].showGridLines = True
+    for row in linhas_brutas:
+        ws1.append(row)
+
+    # Aba 2: Plan2 (Conferência 46º BPM)
+    ws2 = wb_out.create_sheet(title="Plan2")
+    ws2.views.sheetView[0].showGridLines = True
+
+    # Cabeçalho da Plan2
+    ws2.cell(row=1, column=1, value="Placa")
+    ws2.cell(row=1, column=2, value="Valor")
+
+    cur_row = 2
+    cidades_totais: Dict[str, float] = {}
+
+    # Agrupar viaturas alvo na ordem oficial
+    for v_obj in viaturas_alvo:
+        p_raw = v_obj.get('placa', '')
+        p_norm = normalizar_placa(p_raw)
+        if not p_norm or p_norm not in abast_por_placa:
+            continue
+
+        valores = abast_por_placa[p_norm]
+        if not valores:
+            continue
+
+        cid_raw = v_obj.get('cidade_carga') or v_obj.get('fracao') or 'BAGÉ'
+        frac_raw = v_obj.get('fracao') or ''
+
+        if frac_raw == 'EM' or cid_raw.strip().upper() == 'EM':
+            fracao_label = 'EM'
+            cidade_resumo = 'EM'
+        else:
+            cidade_resumo = normalizar_cidade_resumo(cid_raw)
+            fracao_label = cidade_resumo.upper()
+
+        tot_placa = sum(valores)
+        cidades_totais[cidade_resumo] = cidades_totais.get(cidade_resumo, 0.0) + tot_placa
+
+        end_r = cur_row + len(valores) - 1
+
+        for i, val in enumerate(valores):
+            row_num = cur_row + i
+            ws2.cell(row=row_num, column=1, value=p_norm)
+            c_val = ws2.cell(row=row_num, column=2, value=round(val, 2))
+            c_val.number_format = '#,##0.00'
+
+            if i == 0:
+                c_tot = ws2.cell(row=row_num, column=3, value=round(tot_placa, 2))
+                c_tot.number_format = '#,##0.00'
+                ws2.cell(row=row_num, column=4, value=fracao_label)
+
+        # 2 linhas em branco de espaçamento após cada viatura
+        cur_row = end_r + 3
+
+    # Linha Total Geral das Viaturas
+    total_row = cur_row - 2
+    grand_total = sum(cidades_totais.values())
+    ws2.cell(row=total_row, column=1, value="total")
+    c_gtot = ws2.cell(row=total_row, column=3, value=round(grand_total, 2))
+    c_gtot.number_format = '#,##0.00'
+
+    # Tabela Lateral Consolidada (Colunas F e G)
+    ordem_cidades = [
+        'EM', 'Bagé', 'Aceguá', 'Hulha Negra', 'Candiota',
+        'Lavras do Sul', 'Pedras Altas', 'Pinheiro Machado', 'Dom Pedrito'
+    ]
+    for cid in cidades_totais:
+        if cid not in ordem_cidades:
+            ordem_cidades.append(cid)
+
+    num_linhas_tabela = len(ordem_cidades) + 1
+    start_side_row = max(2, total_row - num_linhas_tabela + 3)
+
+    side_r = start_side_row
+    for cid in ordem_cidades:
+        tot_cid = cidades_totais.get(cid, 0.0)
+        ws2.cell(row=side_r, column=6, value=cid)
+        c_ctot = ws2.cell(row=side_r, column=7, value=round(tot_cid, 2))
+        c_ctot.number_format = '#,##0.00'
+        side_r += 1
+
+    # Total geral da tabela lateral
+    c_gtot2 = ws2.cell(row=side_r, column=7, value=round(grand_total, 2))
+    c_gtot2.number_format = '#,##0.00'
+
+    # Ajuste de larguras de coluna da Plan2
+    ws2.column_dimensions['A'].width = 14
+    ws2.column_dimensions['B'].width = 12
+    ws2.column_dimensions['C'].width = 14
+    ws2.column_dimensions['D'].width = 22
+    ws2.column_dimensions['E'].width = 5
+    ws2.column_dimensions['F'].width = 20
+    ws2.column_dimensions['G'].width = 16
+
+    # 5. Determinar nome oficial formatado
+    nome_arquivo_formatado = detectar_nome_arquivo_crpmfo(datas_lote)
+    caminho_saida = os.path.join(pasta_destino, nome_arquivo_formatado)
+    wb_out.save(caminho_saida)
+
+    return caminho_saida, nome_arquivo_formatado
