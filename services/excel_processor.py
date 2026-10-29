@@ -7,6 +7,7 @@ calculando odômetros, consumos (km/l), custos e gerando relatórios formatados 
 import os
 import re
 import unicodedata
+import gc
 from datetime import datetime
 from typing import Tuple, Dict, Any, List, Optional
 import pandas as pd
@@ -1046,6 +1047,10 @@ def gerar_planilha_consolidada_estado_e_plan2(
     for row in linhas_brutas:
         ws1.append(row)
 
+    # Libera linhas_brutas da memória antes de processar a Plan2
+    del linhas_brutas
+    gc.collect()
+
     # Aba 2: Plan2 (Conferência 46º BPM)
     ws2 = wb_out.create_sheet(title="Plan2")
     ws2.views.sheetView[0].showGridLines = True
@@ -1141,5 +1146,8 @@ def gerar_planilha_consolidada_estado_e_plan2(
     nome_arquivo_formatado = detectar_nome_arquivo_crpmfo(datas_lote)
     caminho_saida = os.path.join(pasta_destino, nome_arquivo_formatado)
     wb_out.save(caminho_saida)
+    wb_out.close()
+    del wb_out
+    gc.collect()
 
     return caminho_saida, nome_arquivo_formatado

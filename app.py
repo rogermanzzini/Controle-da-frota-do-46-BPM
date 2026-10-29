@@ -412,29 +412,21 @@ def processar_arquivos():
         meta['arquivo_alvo'] = nome_alvo
         importacao_id = database.salvar_lote_importacao(meta, lista_abastecimentos)
 
-        # Gerar cópia do relatório Excel formatado com openpyxl
-        nome_excel_saida = f"relatorio_46bpm_lote_{importacao_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        caminho_excel_saida = os.path.join(REPORTS_FOLDER, nome_excel_saida)
-        gerar_relatorio_excel_openpyxl(
-            caminho_excel_saida,
-            meta,
-            lista_abastecimentos,
-            df_resumo.to_dict('records')
-        )
+        # Guarda o caminho do arquivo do RS na sessão e limpa caches de planilhas anteriores
+        session['ultimo_caminho_rs'] = caminho_rs
+        session.pop('ultimo_arquivo_consolidado', None)
+        session.pop('ultimo_nome_consolidado', None)
 
-        # Gerar também a planilha consolidada oficial do Estado + Plan2 (Padrão AO CRPMFO)
-        try:
-            caminho_cons, nome_cons = gerar_planilha_consolidada_estado_e_plan2(
-                caminho_rs,
-                lista_veiculos_alvo,
-                REPORTS_FOLDER
-            )
-            session['ultimo_arquivo_consolidado'] = caminho_cons
-            session['ultimo_nome_consolidado'] = nome_cons
-        except Exception as err_cons:
-            print(f"Aviso ao gerar planilha consolidada AO CRPMFO: {err_cons}")
+        msg_sucesso = f'Processamento concluído com sucesso! {meta["total_filtrado"]} abastecimentos identificados para {meta["total_veiculos"]} viaturas do 46º BPM.'
 
-        flash(f'Processamento concluído com sucesso! {meta["total_filtrado"]} abastecimentos identificados para {meta["total_veiculos"]} viaturas do 46º BPM.', 'success')
+        # Libera memória imediatamente
+        del df_resumo
+        del meta
+        del lista_abastecimentos
+        import gc
+        gc.collect()
+
+        flash(msg_sucesso, 'success')
         return redirect(url_for('relatorio'))
 
     except Exception as e:
@@ -567,70 +559,76 @@ def upload_placas():
 @login_required
 def exportar_excel():
     """Gera e faz o download do relatório Excel formatado (.xlsx) em tempo real via openpyxl."""
-    stats = database.obter_estatisticas_gerais()
-    resumo_viaturas = database.obter_resumo_por_viatura()
-    abastecimentos = database.obter_todos_abastecimentos(limit=10000)
+    try:
+        stats = database.obter_estatisticas_gerais()
+        resumo_viaturas = database.obter_resumo_por_viatura()
+        abastecimentos = database.obter_todos_abastecimentos(limit=10000)
 
-    if not abastecimentos:
-        flash('Não há dados de abastecimentos salvos para exportar.', 'warning')
+        if not abastecimentos:
+            flash('Não há dados de abastecimentos salvos para exportar.', 'warning')
+            return redirect(url_for('relatorio'))
+
+        caminho_temporario = os.path.join(REPORTS_FOLDER, f"relatorio_consumo_46bpm_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+        gerar_relatorio_excel_openpyxl(
+            caminho_temporario,
+            stats,
+            abastecimentos,
+            resumo_viaturas
+        )
+
+        return send_file(
+            caminho_temporario,
+            as_attachment=True,
+            download_name=f"Relatorio_Consumo_46BPM_Bage_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        flash(f'Erro ao exportar relatório executivo: {str(e)}', 'danger')
         return redirect(url_for('relatorio'))
-
-    caminho_temporario = os.path.join(REPORTS_FOLDER, f"relatorio_consumo_46bpm_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
-    gerar_relatorio_excel_openpyxl(
-        caminho_temporario,
-        stats,
-        abastecimentos,
-        resumo_viaturas
-    )
-
-    return send_file(
-        caminho_temporario,
-        as_attachment=True,
-        download_name=f"Relatorio_Consumo_46BPM_Bage_{datetime.now().strftime('%Y%m%d')}.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
 
 
 @app.route('/exportar-excel-consolidado')
 @login_required
 def exportar_excel_consolidado():
     """Gera e faz o download da planilha consolidada oficial (Abastecimentos do Estado + Plan2 - Padrão AO CRPMFO)."""
-    # 1. Se já existir arquivo consolidado recente na sessão
-    caminho = session.get('ultimo_arquivo_consolidado')
-    nome_download = session.get('ultimo_nome_consolidado')
-    if caminho and os.path.exists(caminho):
-        return send_file(
-            caminho,
-            as_attachment=True,
-            download_name=nome_download or os.path.basename(caminho),
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-    # 2. Localizar o arquivo de abastecimentos do RS mais recente na pasta uploads
-    arquivos_rs = sorted(
-        [os.path.join(UPLOAD_FOLDER, f) for f in os.listdir(UPLOAD_FOLDER) if f.lower().endswith(('.xls', '.xlsx')) and not f.startswith('.')],
-        key=os.path.getmtime,
-        reverse=True
-    )
-    if not arquivos_rs:
-        # Tenta na pasta exemplos como fallback
-        exemplos_rs = [os.path.join(EXEMPLOS_FOLDER, f) for f in os.listdir(EXEMPLOS_FOLDER) if 'rs' in f.lower() and f.endswith(('.xls', '.xlsx'))]
-        if exemplos_rs:
-            arquivos_rs = exemplos_rs
-
-    if not arquivos_rs:
-        flash('Nenhuma planilha de abastecimentos do estado foi encontrada para gerar o arquivo consolidado.', 'warning')
-        return redirect(url_for('relatorio'))
-
-    ultimo_rs = arquivos_rs[0]
-    viaturas = database.obter_veiculos_alvo()
-    if not viaturas:
-        database.popular_viaturas_padrao_46bpm()
-        viaturas = database.obter_veiculos_alvo()
-
     try:
+        # 1. Se já existir arquivo consolidado recente na sessão
+        caminho = session.get('ultimo_arquivo_consolidado')
+        nome_download = session.get('ultimo_nome_consolidado')
+        if caminho and os.path.exists(caminho):
+            return send_file(
+                caminho,
+                as_attachment=True,
+                download_name=nome_download or os.path.basename(caminho),
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+        # 2. Localizar o arquivo do RS (da sessão ou pasta de uploads)
+        caminho_rs = session.get('ultimo_caminho_rs')
+        if not caminho_rs or not os.path.exists(caminho_rs):
+            arquivos_rs = sorted(
+                [os.path.join(UPLOAD_FOLDER, f) for f in os.listdir(UPLOAD_FOLDER) if f.lower().endswith(('.xls', '.xlsx')) and not f.startswith('.')],
+                key=os.path.getmtime,
+                reverse=True
+            )
+            if arquivos_rs:
+                caminho_rs = arquivos_rs[0]
+            else:
+                exemplos_rs = [os.path.join(EXEMPLOS_FOLDER, f) for f in os.listdir(EXEMPLOS_FOLDER) if 'rs' in f.lower() and f.endswith(('.xls', '.xlsx'))]
+                if exemplos_rs:
+                    caminho_rs = exemplos_rs[0]
+
+        if not caminho_rs or not os.path.exists(caminho_rs):
+            flash('Nenhuma planilha de abastecimentos do estado foi encontrada para gerar o arquivo consolidado.', 'warning')
+            return redirect(url_for('relatorio'))
+
+        viaturas = database.obter_veiculos_alvo()
+        if not viaturas:
+            database.popular_viaturas_padrao_46bpm()
+            viaturas = database.obter_veiculos_alvo()
+
         caminho_gerado, nome_gerado = gerar_planilha_consolidada_estado_e_plan2(
-            ultimo_rs,
+            caminho_rs,
             viaturas,
             REPORTS_FOLDER
         )
@@ -712,46 +710,50 @@ def limpar_dados():
 @login_required
 def gerar_relatorio_pdf():
     """Gera um PDF contendo apenas os abastecimentos das viaturas selecionadas (por placa ou prefixo)."""
-    raw_veiculos = request.form.getlist('veiculos') or request.form.getlist('prefixos') or request.form.getlist('placas')
-    veiculos = [v.strip() for v in raw_veiculos if v and v.strip()]
-    if not veiculos:
-        flash('Selecione ao menos uma viatura para gerar o relatório.', 'warning')
+    try:
+        raw_veiculos = request.form.getlist('veiculos') or request.form.getlist('prefixos') or request.form.getlist('placas')
+        veiculos = [v.strip() for v in raw_veiculos if v and v.strip()]
+        if not veiculos:
+            flash('Selecione ao menos uma viatura para gerar o relatório.', 'warning')
+            return redirect(url_for('dashboard'))
+        # Busca os abastecimentos referentes às viaturas selecionadas
+        abastecimentos = database.obter_abastecimentos_por_veiculos(veiculos)
+        if not abastecimentos:
+            flash('Nenhum abastecimento encontrado para as viaturas selecionadas.', 'info')
+            return redirect(url_for('dashboard'))
+
+        # Dados customizados de assinatura do formulário
+        nome_assinante = request.form.get('nome_assinante', '').strip()
+        graduacao_assinante = request.form.get('graduacao_assinante', '').strip()
+        cargo_assinante = request.form.get('cargo_assinante', '').strip()
+        salvar_como_padrao = request.form.get('salvar_como_padrao') == '1'
+
+        dados_assinatura = None
+        if nome_assinante:
+            dados_assinatura = {
+                'nome': nome_assinante,
+                'graduacao': graduacao_assinante or 'SD PM',
+                'cargo': cargo_assinante or 'Auxiliar do P4/46º BPM'
+            }
+            if salvar_como_padrao:
+                from services.report_config import set_assinatura_config
+                set_assinatura_config(nome_assinante, graduacao_assinante or 'SD PM', cargo_assinante or 'Auxiliar do P4/46º BPM')
+                flash('Assinatura salva como novo padrão fixo do sistema!', 'info')
+
+        # Cria o PDF
+        from services.pdf_report_generator import gerar_pdf, obter_nome_arquivo_relatorio
+        nome_arquivo_download = obter_nome_arquivo_relatorio(abastecimentos)
+        pdf_path = os.path.join(REPORTS_FOLDER, f"relatorio_consumo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
+        gerar_pdf(pdf_path, abastecimentos, veiculos, dados_assinatura=dados_assinatura)
+        return send_file(
+            pdf_path,
+            as_attachment=True,
+            download_name=nome_arquivo_download,
+            mimetype='application/pdf'
+        )
+    except Exception as e:
+        flash(f'Erro ao gerar o relatório em PDF: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
-    # Busca os abastecimentos referentes às viaturas selecionadas
-    abastecimentos = database.obter_abastecimentos_por_veiculos(veiculos)
-    if not abastecimentos:
-        flash('Nenhum abastecimento encontrado para as viaturas selecionadas.', 'info')
-        return redirect(url_for('dashboard'))
-
-    # Dados customizados de assinatura do formulário
-    nome_assinante = request.form.get('nome_assinante', '').strip()
-    graduacao_assinante = request.form.get('graduacao_assinante', '').strip()
-    cargo_assinante = request.form.get('cargo_assinante', '').strip()
-    salvar_como_padrao = request.form.get('salvar_como_padrao') == '1'
-
-    dados_assinatura = None
-    if nome_assinante:
-        dados_assinatura = {
-            'nome': nome_assinante,
-            'graduacao': graduacao_assinante or 'SD PM',
-            'cargo': cargo_assinante or 'Auxiliar do P4/46º BPM'
-        }
-        if salvar_como_padrao:
-            from services.report_config import set_assinatura_config
-            set_assinatura_config(nome_assinante, graduacao_assinante or 'SD PM', cargo_assinante or 'Auxiliar do P4/46º BPM')
-            flash('Assinatura salva como novo padrão fixo do sistema!', 'info')
-
-    # Cria o PDF
-    from services.pdf_report_generator import gerar_pdf, obter_nome_arquivo_relatorio
-    nome_arquivo_download = obter_nome_arquivo_relatorio(abastecimentos)
-    pdf_path = os.path.join(REPORTS_FOLDER, f"relatorio_consumo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
-    gerar_pdf(pdf_path, abastecimentos, veiculos, dados_assinatura=dados_assinatura)
-    return send_file(
-        pdf_path,
-        as_attachment=True,
-        download_name=nome_arquivo_download,
-        mimetype='application/pdf'
-    )
 
 
 # Rota para gerar o ATESTADO DE COMBUSTÍVEIS oficial em PDF
@@ -760,59 +762,63 @@ def gerar_relatorio_pdf():
 @login_required
 def gerar_atestado_pdf_route():
     """Gera o documento oficial ATESTADO DE COMBUSTÍVEIS em PDF com valor total por extenso e quinzena."""
-    abastecimentos = database.obter_todos_abastecimentos(limit=50000)
-    if not abastecimentos:
-        flash('Nenhum abastecimento encontrado para gerar o Atestado de Combustíveis.', 'warning')
+    try:
+        abastecimentos = database.obter_todos_abastecimentos(limit=50000)
+        if not abastecimentos:
+            flash('Nenhum abastecimento encontrado para gerar o Atestado de Combustíveis.', 'warning')
+            return redirect(url_for('dashboard'))
+
+        stats = database.obter_estatisticas_gerais()
+        total_valor = stats.get('total_valor', 0.0)
+
+        from services.report_config import get_atestado_config, set_atestado_config
+        cfg = get_atestado_config()
+
+        # Modo de assinatura: titular, respondendo, impedimento
+        modo = request.form.get('modo') or request.args.get('modo') or cfg.get('modo', 'impedimento')
+        salvar_como_padrao = request.form.get('salvar_como_padrao') == '1'
+
+        dados_assinatura = {
+            'modo': modo,
+            'titular_nome': request.form.get('titular_nome', '').strip() or cfg.get('titular_nome'),
+            'titular_cargo': request.form.get('titular_cargo', '').strip() or cfg.get('titular_cargo'),
+            'respondendo_nome': request.form.get('respondendo_nome', '').strip() or cfg.get('respondendo_nome'),
+            'respondendo_cargo': request.form.get('respondendo_cargo', '').strip() or cfg.get('respondendo_cargo'),
+            'subcomandante_nome': request.form.get('subcomandante_nome', '').strip() or cfg.get('subcomandante_nome'),
+            'subcomandante_cargo': request.form.get('subcomandante_cargo', '').strip() or cfg.get('subcomandante_cargo'),
+            'gestor_nome': request.form.get('gestor_nome', '').strip() or cfg.get('gestor_nome'),
+            'gestor_cargo': request.form.get('gestor_cargo', '').strip() or cfg.get('gestor_cargo'),
+        }
+
+        if salvar_como_padrao:
+            set_atestado_config(dados_assinatura)
+            flash('Configurações de assinatura do Atestado salvas como padrão!', 'info')
+
+        from services.atestado_generator import gerar_atestado_pdf as criar_atestado, obter_dados_periodo_atestado
+        info_periodo = obter_dados_periodo_atestado(abastecimentos)
+        nome_arquivo = info_periodo['nome_arquivo']
+
+        # Captura o texto personalizado caso o usuário tenha editado no formulário
+        texto_atestado = request.form.get('texto_atestado', '').strip() or request.args.get('texto_atestado', '').strip() or None
+
+        pdf_path = os.path.join(REPORTS_FOLDER, f"atestado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
+        criar_atestado(
+            pdf_path,
+            abastecimentos,
+            valor_total=total_valor,
+            dados_assinatura=dados_assinatura,
+            texto_personalizado=texto_atestado
+        )
+
+        return send_file(
+            pdf_path,
+            as_attachment=True,
+            download_name=nome_arquivo,
+            mimetype='application/pdf'
+        )
+    except Exception as e:
+        flash(f'Erro ao gerar Atestado de Combustíveis em PDF: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
-
-    stats = database.obter_estatisticas_gerais()
-    total_valor = stats.get('total_valor', 0.0)
-
-    from services.report_config import get_atestado_config, set_atestado_config
-    cfg = get_atestado_config()
-
-    # Modo de assinatura: titular, respondendo, impedimento
-    modo = request.form.get('modo') or request.args.get('modo') or cfg.get('modo', 'impedimento')
-    salvar_como_padrao = request.form.get('salvar_como_padrao') == '1'
-
-    dados_assinatura = {
-        'modo': modo,
-        'titular_nome': request.form.get('titular_nome', '').strip() or cfg.get('titular_nome'),
-        'titular_cargo': request.form.get('titular_cargo', '').strip() or cfg.get('titular_cargo'),
-        'respondendo_nome': request.form.get('respondendo_nome', '').strip() or cfg.get('respondendo_nome'),
-        'respondendo_cargo': request.form.get('respondendo_cargo', '').strip() or cfg.get('respondendo_cargo'),
-        'subcomandante_nome': request.form.get('subcomandante_nome', '').strip() or cfg.get('subcomandante_nome'),
-        'subcomandante_cargo': request.form.get('subcomandante_cargo', '').strip() or cfg.get('subcomandante_cargo'),
-        'gestor_nome': request.form.get('gestor_nome', '').strip() or cfg.get('gestor_nome'),
-        'gestor_cargo': request.form.get('gestor_cargo', '').strip() or cfg.get('gestor_cargo'),
-    }
-
-    if salvar_como_padrao:
-        set_atestado_config(dados_assinatura)
-        flash('Configurações de assinatura do Atestado salvas como padrão!', 'info')
-
-    from services.atestado_generator import gerar_atestado_pdf as criar_atestado, obter_dados_periodo_atestado
-    info_periodo = obter_dados_periodo_atestado(abastecimentos)
-    nome_arquivo = info_periodo['nome_arquivo']
-
-    # Captura o texto personalizado caso o usuário tenha editado no formulário
-    texto_atestado = request.form.get('texto_atestado', '').strip() or request.args.get('texto_atestado', '').strip() or None
-
-    pdf_path = os.path.join(REPORTS_FOLDER, f"atestado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
-    criar_atestado(
-        pdf_path,
-        abastecimentos,
-        valor_total=total_valor,
-        dados_assinatura=dados_assinatura,
-        texto_personalizado=texto_atestado
-    )
-
-    return send_file(
-        pdf_path,
-        as_attachment=True,
-        download_name=nome_arquivo,
-        mimetype='application/pdf'
-    )
 
 
 @app.route('/api/atestado/texto-padrao')
