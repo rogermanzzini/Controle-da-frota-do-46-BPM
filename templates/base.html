@@ -158,9 +158,16 @@
                                     <i class="fa-solid fa-user-check me-2"></i> Configurar Assinatura do Atestador (Manutenção)
                                 </button>
                             </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.5px;">Atestados de Combustíveis</h6></li>
                             <li>
                                 <button type="button" class="dropdown-item text-warning" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestado">
-                                    <i class="fa-solid fa-file-signature me-2"></i> Emitir Atestado de Combustíveis
+                                    <i class="fa-solid fa-file-shield me-2"></i> Atestado Geral (46º BPM)
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button" class="dropdown-item text-info" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestadoEM">
+                                    <i class="fa-solid fa-star me-2"></i> Atestado Estado Maior (EM)
                                 </button>
                             </li>
                             <li><hr class="dropdown-divider"></li>
@@ -541,6 +548,197 @@
         </div>
     </div>
 
+    <!-- Modal de Emissão do Atestado de Combustíveis do Estado Maior (EM) -->
+    <div class="modal fade" id="modalEmitirAtestadoEM" tabindex="-1" aria-labelledby="modalEmitirAtestadoEMLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-tactical-card text-light border border-info border-opacity-25 shadow">
+                <div class="modal-header border-info border-opacity-25 bg-dark">
+                    <h5 class="modal-title fw-bold text-white" id="modalEmitirAtestadoEMLabel">
+                        <i class="fa-solid fa-star text-info me-2"></i> Emitir Atestado &bull; Estado Maior (EM)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <form action="{{ url_for('gerar_atestado_em_pdf_route') }}" method="POST" id="formAtestadoEM">
+                    <div class="modal-body">
+                        <p class="text-secondary small mb-3">
+                            Emissão oficial do <strong>Atestado de Combustíveis do Estado Maior (EM)</strong>. Selecione as viaturas desejadas e defina as assinaturas da Chefia do P4 e Gestão de Frota.
+                        </p>
+
+                        <!-- Bloco de Seleção de Viaturas do Estado Maior -->
+                        <div class="p-3 rounded bg-dark border border-info border-opacity-25 mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                <span class="fw-bold small text-info">
+                                    <i class="fa-solid fa-list-check me-1"></i> Selecionar Viaturas do Estado Maior:
+                                </span>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-outline-info btn-sm py-0 px-2" style="font-size: 0.75rem;" id="btnMarcarTodasEM">
+                                        <i class="fa-solid fa-check-double me-1"></i> Marcar Todas
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size: 0.75rem;" id="btnDesmarcarTodasEM">
+                                        <i class="fa-solid fa-xmark me-1"></i> Desmarcar Todas
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 mb-2" id="containerViaturasEM">
+                                {% for vtr in viaturas_estado_maior %}
+                                <div class="col-md-6 col-12">
+                                    <label class="p-2 rounded bg-tactical-card border border-secondary border-opacity-25 d-flex align-items-center justify-content-between cursor-pointer item-vtr-em hover-glow">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <input class="form-check-input check-vtr-em mt-0" type="checkbox" name="placas" value="{{ vtr.placa }}" data-placa="{{ vtr.placa }}" data-valor="{{ vtr.total_valor }}" data-prefixo="{{ vtr.prefixo }}" data-modelo="{{ vtr.modelo }}" checked>
+                                            <div>
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <span class="badge bg-info-subtle text-info font-monospace fw-bold">{{ vtr.prefixo or 'EM' }}</span>
+                                                    <span class="badge bg-secondary font-monospace">{{ vtr.placa }}</span>
+                                                </div>
+                                                <small class="text-secondary d-block" style="font-size: 0.75rem;">{{ vtr.modelo }}</small>
+                                            </div>
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="fw-bold text-white small d-block">R$ {{ "{:,.2f}".format(vtr.total_valor).replace(',', 'X').replace('.', ',').replace('X', '.') }}</span>
+                                            <small class="text-secondary" style="font-size: 0.70rem;">{{ vtr.qtd_abastecimentos }} abast.</small>
+                                        </div>
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary border-opacity-25 mt-2">
+                                <span class="small text-secondary" id="lblQtdVtrsSelecionadasEM">
+                                    <strong class="text-info" id="countVtrsSelEM">{{ viaturas_estado_maior|length }}</strong> de {{ viaturas_estado_maior|length }} viaturas selecionadas
+                                </span>
+                                <div class="text-end">
+                                    <small class="text-secondary me-2">Total selecionado:</small>
+                                    <span class="fs-6 fw-bold text-success" id="lblTotalCalculadoEM">R$ 0,00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Modalidades de Assinatura da Chefia do P4 -->
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-light mb-2">
+                                <i class="fa-solid fa-signature text-warning me-1"></i> Modalidade de Assinatura da Chefia do P4/46º BPM:
+                            </label>
+                            <div class="row g-2">
+                                <!-- Opção 1: Chefe do P4/46º BPM -->
+                                <div class="col-md-6 col-12">
+                                    <label class="p-3 rounded bg-dark border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start position-relative">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="modo" id="modoChefeP4" value="chefe" {% if atestado_em_config.modo == 'chefe' or not atestado_em_config.modo %}checked{% endif %}>
+                                            <span class="form-check-label fw-bold text-white d-block">Chefe do P4/46º BPM</span>
+                                        </div>
+                                        <small class="text-secondary d-block mt-2 lh-sm">
+                                            <span class="text-white">{{ atestado_em_config.chefe_nome }}</span><br/>
+                                            <span class="text-info">{{ atestado_em_config.chefe_cargo }}</span>
+                                        </small>
+                                    </label>
+                                </div>
+
+                                <!-- Opção 2: Rsp. p/ Chefe do P4/46º BPM -->
+                                <div class="col-md-6 col-12">
+                                    <label class="p-3 rounded bg-dark border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start position-relative">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="modo" id="modoRspChefeP4" value="respondendo" {% if atestado_em_config.modo == 'respondendo' %}checked{% endif %}>
+                                            <span class="form-check-label fw-bold text-white d-block">Rsp. p/ Chefe do P4/46º BPM</span>
+                                        </div>
+                                        <small class="text-secondary d-block mt-2 lh-sm">
+                                            <span class="text-white">{{ atestado_em_config.respondendo_nome }}</span><br/>
+                                            <span class="text-info">{{ atestado_em_config.respondendo_cargo }}</span>
+                                        </small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bloco do Texto Editável do Atestado do EM -->
+                        <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label for="textareaTextoAtestadoEM" class="form-label small fw-bold text-light mb-0">
+                                    <i class="fa-solid fa-file-pen text-info me-1"></i> Texto do Atestado (Editável):
+                                </label>
+                                <button type="button" class="btn btn-outline-info btn-sm py-0 px-2" id="btnRestaurarTextoPadraoEM" style="font-size: 0.75rem;" title="Restaura o texto padrão oficial com cálculos automáticos das viaturas selecionadas">
+                                    <i class="fa-solid fa-rotate-left me-1"></i> Restaurar Padrão
+                                </button>
+                            </div>
+                            <small class="text-secondary d-block mb-2" style="font-size: 0.78rem;">
+                                Atualizado dinamicamente com base nas viaturas do Estado Maior selecionadas acima.
+                            </small>
+                            <textarea 
+                                name="texto_atestado" 
+                                id="textareaTextoAtestadoEM" 
+                                class="form-control bg-dark text-light border-secondary small" 
+                                rows="5" 
+                                style="font-size: 0.84rem; line-height: 1.45; resize: vertical;"
+                                data-padrao="{{ texto_padrao_atestado_em }}"
+                                placeholder="Texto do atestado do Estado Maior..."
+                            >{{ texto_padrao_atestado_em }}</textarea>
+                        </div>
+
+                        <!-- Botão para Expandir Edição Personalizada das Assinaturas do EM -->
+                        <div class="mb-3 text-end">
+                            <button class="btn btn-link btn-sm text-secondary p-0 text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAtestadoEMEdit" aria-expanded="false">
+                                <i class="fa-solid fa-pen-to-square me-1"></i> Editar nomes e postos/funções do P4 e gestor de frota
+                            </button>
+                        </div>
+
+                        <!-- Seção Expansível para Edição -->
+                        <div class="collapse" id="collapseAtestadoEMEdit">
+                            <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 mb-3">
+                                <h6 class="fw-bold text-info mb-2 small"><i class="fa-solid fa-sliders me-1"></i> Personalizar Dados das Assinaturas (Estado Maior):</h6>
+                                
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Chefe do P4/46º BPM (Nome)</label>
+                                        <input type="text" name="chefe_nome" id="inputChefeNomeEM" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_em_config.chefe_nome }}">
+                                    </div>
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Chefe do P4/46º BPM (Posto/Função)</label>
+                                        <input type="text" name="chefe_cargo" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_em_config.chefe_cargo }}">
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Rsp. p/ Chefe do P4 (Nome)</label>
+                                        <input type="text" name="respondendo_nome" id="inputRspNomeEM" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_em_config.respondendo_nome }}">
+                                    </div>
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Rsp. p/ Chefe do P4 (Posto/Função)</label>
+                                        <input type="text" name="respondendo_cargo" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_em_config.respondendo_cargo }}">
+                                    </div>
+                                </div>
+
+                                <div class="row g-2">
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Gestor de Frota (Nome)</label>
+                                        <input type="text" name="gestor_nome" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_em_config.gestor_nome }}">
+                                    </div>
+                                    <div class="col-md-6 col-12">
+                                        <label class="form-label small text-secondary mb-1">Gestor de Frota (Posto/Função)</label>
+                                        <input type="text" name="gestor_cargo" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ atestado_em_config.gestor_cargo }}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="salvar_como_padrao" value="1" id="checkSalvarPadraoAtestadoEM">
+                            <label class="form-check-label small text-secondary" for="checkSalvarPadraoAtestadoEM">
+                                Salvar este modo e assinaturas como novo padrão para os próximos atestados do Estado Maior
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-25 bg-dark">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-info btn-sm fw-bold text-dark">
+                            <i class="fa-solid fa-file-pdf me-1"></i> Gerar e Baixar Atestado EM (PDF)
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Chart.js -->
@@ -585,6 +783,90 @@
                             })
                             .catch(err => console.error('Erro ao atualizar texto do atestado:', err));
                     }
+                });
+            }
+
+            // -------------------------------------------------------------
+            // LÓGICA DO ATESTADO DE COMBUSTÍVEIS DO ESTADO MAIOR (EM)
+            // -------------------------------------------------------------
+            const modalEM = document.getElementById('modalEmitirAtestadoEM');
+            const textareaTextoEM = document.getElementById('textareaTextoAtestadoEM');
+            const btnRestaurarEM = document.getElementById('btnRestaurarTextoPadraoEM');
+            const btnMarcarTodasEM = document.getElementById('btnMarcarTodasEM');
+            const btnDesmarcarTodasEM = document.getElementById('btnDesmarcarTodasEM');
+            const checksVtrEM = document.querySelectorAll('.check-vtr-em');
+            const countVtrsSelEM = document.getElementById('countVtrsSelEM');
+            const lblTotalCalculadoEM = document.getElementById('lblTotalCalculadoEM');
+
+            function atualizarCalculoAtestadoEM() {
+                const placasSel = [];
+                let totalSoma = 0.0;
+                let countSel = 0;
+
+                checksVtrEM.forEach(chk => {
+                    if (chk.checked) {
+                        placasSel.push(chk.value);
+                        totalSoma += parseFloat(chk.getAttribute('data-valor') || 0.0);
+                        countSel++;
+                    }
+                });
+
+                if (countVtrsSelEM) {
+                    countVtrsSelEM.textContent = countSel;
+                }
+                if (lblTotalCalculadoEM) {
+                    const fmt = totalSoma.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    lblTotalCalculadoEM.textContent = 'R$ ' + fmt;
+                }
+
+                // Chamar API para recalcular texto padrão oficial com as placas selecionadas
+                fetch('/api/atestado/em/calcular-texto', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ placas: placasSel })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.sucesso && textareaTextoEM) {
+                        textareaTextoEM.value = data.texto;
+                        textareaTextoEM.setAttribute('data-padrao', data.texto);
+                        if (lblTotalCalculadoEM && data.total_formatado) {
+                            lblTotalCalculadoEM.textContent = data.total_formatado;
+                        }
+                    }
+                })
+                .catch(err => console.error('Erro ao recalcular texto do EM:', err));
+            }
+
+            if (checksVtrEM.length > 0) {
+                checksVtrEM.forEach(chk => {
+                    chk.addEventListener('change', atualizarCalculoAtestadoEM);
+                });
+            }
+
+            if (btnMarcarTodasEM) {
+                btnMarcarTodasEM.addEventListener('click', function () {
+                    checksVtrEM.forEach(chk => chk.checked = true);
+                    atualizarCalculoAtestadoEM();
+                });
+            }
+
+            if (btnDesmarcarTodasEM) {
+                btnDesmarcarTodasEM.addEventListener('click', function () {
+                    checksVtrEM.forEach(chk => chk.checked = false);
+                    atualizarCalculoAtestadoEM();
+                });
+            }
+
+            if (btnRestaurarEM && textareaTextoEM) {
+                btnRestaurarEM.addEventListener('click', function () {
+                    atualizarCalculoAtestadoEM();
+                });
+            }
+
+            if (modalEM) {
+                modalEM.addEventListener('show.bs.modal', function () {
+                    atualizarCalculoAtestadoEM();
                 });
             }
         });

@@ -123,6 +123,61 @@ def set_atestado_config(dados: Dict[str, str]) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+DEFAULT_ATESTADO_EM_CONFIG = {
+    "modo": "chefe",  # "chefe" (Chefe do P4/46º BPM) ou "respondendo" (Rsp. p/ Chefe do P4/46º BPM)
+    "chefe_nome": "LUCIANO CARDOSO LEAL",
+    "chefe_cargo": "Cap PM – Chefe do P4/46º BPM",
+    "respondendo_nome": "JULIANO INOCENTE VELEDA",
+    "respondendo_cargo": "1º Ten PM – Rsp. p/ Chefe do P4/46º BPM",
+    "gestor_nome": "RÓGER SANTANA MANZZINI",
+    "gestor_cargo": "SD PM – Gestor de frota 46º BPM"
+}
+
+
+def get_atestado_em_config() -> Dict[str, str]:
+    """Retorna as configurações e nomes das assinaturas do Atestado do Estado Maior (EM)."""
+    cfg = DEFAULT_ATESTADO_EM_CONFIG.copy()
+    ass_cfg = get_assinatura_config()
+    cfg['gestor_nome'] = ass_cfg.get('nome') or cfg['gestor_nome']
+    cfg['gestor_cargo'] = f"{ass_cfg.get('graduacao', 'SD PM')} – Gestor de frota 46º BPM"
+
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                atestado_em_data = data.get("atestado_em")
+                if isinstance(atestado_em_data, dict):
+                    for k in cfg:
+                        if k in atestado_em_data and atestado_em_data[k]:
+                            cfg[k] = str(atestado_em_data[k]).strip()
+        except Exception:
+            pass
+    return cfg
+
+
+def set_atestado_em_config(dados: Dict[str, str]) -> None:
+    """Salva as opções de assinatura do Atestado do Estado Maior no arquivo report_config.json."""
+    data = {}
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+
+    current = data.get("atestado_em", {})
+    if not isinstance(current, dict):
+        current = {}
+
+    for k, v in dados.items():
+        if v is not None and str(v).strip():
+            current[k] = str(v).strip()
+
+    data["atestado_em"] = current
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 DEFAULT_ATESTADOR_CONFIG = {
     "nome": "JULIANO INOCENTE VELEDA",
     "graduacao": "Sd PM",

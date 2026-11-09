@@ -641,6 +641,39 @@ def obter_veiculos_com_abastecimento(importacao_id: Optional[int] = None) -> Lis
     return rows
 
 
+def obter_viaturas_estado_maior(importacao_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """
+    Retorna a lista de viaturas do Estado Maior (EM) com o quantitativo e valor
+    dos abastecimentos registrados no período selecionado ou mais recente.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    where_imp = "AND a.importacao_id = ?" if importacao_id else ""
+    params = [importacao_id] if importacao_id else []
+
+    query = f'''
+        SELECT 
+            v.placa,
+            COALESCE(v.prefixo, '') as prefixo,
+            COALESCE(v.modelo, '') as modelo,
+            COALESCE(v.cidade_carga, 'EM') as cidade_carga,
+            COALESCE(v.fracao, '46º BPM - EM') as fracao,
+            COUNT(a.id) as qtd_abastecimentos,
+            COALESCE(SUM(a.valor_total), 0.0) as total_valor,
+            COALESCE(SUM(a.litros), 0.0) as total_litros
+        FROM veiculos_alvo v
+        LEFT JOIN abastecimentos a ON v.placa = a.placa {where_imp}
+        WHERE v.fracao = '46º BPM - EM' OR v.cidade_carga = 'EM' 
+           OR v.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78')
+        GROUP BY v.placa
+        ORDER BY CASE WHEN v.prefixo GLOB '[0-9]*' THEN 0 ELSE 1 END, CAST(v.prefixo AS INTEGER), v.prefixo, v.placa
+    '''
+    cursor.execute(query, params)
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
 def salvar_lote_importacao(meta: Dict[str, Any], lista_abastecimentos: List[Dict[str, Any]]) -> int:
     """
     Registra um novo lote de importação e todos os abastecimentos filtrados correspondentes.

@@ -14,7 +14,10 @@
     </div>
     <div class="col-md-6 text-md-end mt-3 mt-md-0 d-flex flex-wrap gap-2 justify-content-md-end align-items-center">
         <button type="button" class="btn btn-warning px-3 fw-bold text-dark shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestado">
-            <i class="fa-solid fa-file-signature me-1"></i> Atestado (PDF)
+            <i class="fa-solid fa-file-signature me-1"></i> Atestado Geral (PDF)
+        </button>
+        <button type="button" class="btn btn-info px-3 fw-bold text-dark shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEmitirAtestadoEM">
+            <i class="fa-solid fa-star me-1"></i> Atestado EM (PDF)
         </button>
         <div class="btn-group shadow-sm">
             <a href="{{ url_for('exportar_excel_consolidado') }}" class="btn btn-success fw-bold px-3" title="Baixa o arquivo contendo os abastecimentos de todo estado e a Plan2 de conferência do 46º BPM">

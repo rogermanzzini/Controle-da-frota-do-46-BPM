@@ -78,16 +78,22 @@ def inject_global_data():
     from services.report_config import (
         get_assinatura_config,
         get_atestado_config,
+        get_atestado_em_config,
         get_atestador_recebimento_config,
         get_empresa_config,
         GRADUACOES_DISPONIVEIS,
         CARGOS_DISPONIVEIS
     )
-    from services.atestado_generator import gerar_texto_padrao_atestado
+    from services.atestado_generator import (
+        gerar_texto_padrao_atestado,
+        gerar_texto_padrao_atestado_em
+    )
 
     texto_padrao_atestado = ""
+    texto_padrao_atestado_em = ""
     try:
         texto_padrao_atestado = gerar_texto_padrao_atestado()
+        texto_padrao_atestado_em = gerar_texto_padrao_atestado_em()
     except Exception:
         pass
 
@@ -128,9 +134,12 @@ def inject_global_data():
         'modulo_ativo': modulo_ativo,
         'assinatura_padrao': get_assinatura_config(),
         'atestado_config': get_atestado_config(),
+        'atestado_em_config': get_atestado_em_config(),
         'atestador_padrao': get_atestador_recebimento_config(),
         'empresa_padrao': get_empresa_config(),
         'texto_padrao_atestado': texto_padrao_atestado,
+        'texto_padrao_atestado_em': texto_padrao_atestado_em,
+        'viaturas_estado_maior': database.obter_viaturas_estado_maior(),
         'graduacoes_disponiveis': GRADUACOES_DISPONIVEIS,
         'cargos_disponiveis': CARGOS_DISPONIVEIS,
         'graduacoes_militares': graduacoes_militares,
@@ -849,6 +858,155 @@ def salvar_config_atestado():
     }
     set_atestado_config(dados)
     flash('Configuração de assinaturas do Atestado salva com sucesso!', 'success')
+    return redirect(request.referrer or url_for('dashboard'))
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ROTAS DO ATESTADO DE COMBUSTÍVEIS - ESTADO MAIOR (EM)
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.route('/atestado/em/pdf', methods=['GET', 'POST'])
+@app.route('/relatorio/atestado-em-pdf', methods=['GET', 'POST'])
+@login_required
+def gerar_atestado_em_pdf_route():
+    """Gera o documento oficial ATESTADO DE COMBUSTÍVEIS DO ESTADO MAIOR (EM) em PDF."""
+    try:
+        # Obter viaturas selecionadas pelo usuário (placas)
+        placas_sel = request.form.getlist('placas') or request.args.getlist('placas')
+        if not placas_sel:
+            placas_raw = request.form.get('placas_selecionadas') or request.args.get('placas_selecionadas') or ''
+            if placas_raw:
+                placas_sel = [p.strip().upper() for p in placas_raw.split(',') if p.strip()]
+
+        placas_set = {p.strip().upper().replace('-', '').replace(' ', '') for p in placas_sel if p}
+
+        abastecimentos = database.obter_todos_abastecimentos(limit=50000)
+        placas_em_padrao = {'IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78'}
+
+        if placas_set:
+            abastecimentos_em = [
+                a for a in abastecimentos
+                if str(a.get('placa', '')).strip().upper().replace('-', '').replace(' ', '') in placas_set
+            ]
+        else:
+            abastecimentos_em = [
+                a for a in abastecimentos
+                if str(a.get('placa', '')).strip().upper().replace('-', '').replace(' ', '') in placas_em_padrao
+                or 'EM' in str(a.get('fracao', '')).upper()
+                or str(a.get('cidade_carga', '')).strip().upper() == 'EM'
+            ]
+
+        if not abastecimentos_em:
+            flash('Nenhum abastecimento encontrado para as viaturas do Estado Maior selecionadas.', 'warning')
+            return redirect(request.referrer or url_for('dashboard'))
+
+        total_valor = sum(float(a.get('valor_total') or 0.0) for a in abastecimentos_em)
+
+        from services.report_config import get_atestado_em_config, set_atestado_em_config
+        cfg = get_atestado_em_config()
+
+        modo = request.form.get('modo') or request.args.get('modo') or cfg.get('modo', 'chefe')
+        salvar_como_padrao = request.form.get('salvar_como_padrao') == '1'
+
+        dados_assinatura = {
+            'modo': modo,
+            'chefe_nome': request.form.get('chefe_nome', '').strip() or cfg.get('chefe_nome'),
+            'chefe_cargo': request.form.get('chefe_cargo', '').strip() or cfg.get('chefe_cargo'),
+            'respondendo_nome': request.form.get('respondendo_nome', '').strip() or cfg.get('respondendo_nome'),
+            'respondendo_cargo': request.form.get('respondendo_cargo', '').strip() or cfg.get('respondendo_cargo'),
+            'gestor_nome': request.form.get('gestor_nome', '').strip() or cfg.get('gestor_nome'),
+            'gestor_cargo': request.form.get('gestor_cargo', '').strip() or cfg.get('gestor_cargo'),
+        }
+
+        if salvar_como_padrao:
+            set_atestado_em_config(dados_assinatura)
+            flash('Configurações de assinatura do Atestado do Estado Maior salvas como padrão!', 'info')
+
+        from services.atestado_generator import gerar_atestado_em_pdf as criar_atestado_em, obter_dados_periodo_atestado
+        info_periodo = obter_dados_periodo_atestado(abastecimentos_em)
+        nome_arquivo = f"Atestado de Combustíveis - Estado Maior - {info_periodo['quinzena']} quinzena de {info_periodo['mes_ref']}.pdf"
+
+        texto_atestado = request.form.get('texto_atestado', '').strip() or request.args.get('texto_atestado', '').strip() or None
+
+        pdf_path = os.path.join(REPORTS_FOLDER, f"atestado_em_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
+        criar_atestado_em(
+            pdf_path,
+            abastecimentos_em,
+            valor_total=total_valor,
+            dados_assinatura=dados_assinatura,
+            texto_personalizado=texto_atestado
+        )
+
+        return send_file(
+            pdf_path,
+            as_attachment=True,
+            download_name=nome_arquivo,
+            mimetype='application/pdf'
+        )
+    except Exception as e:
+        flash(f'Erro ao gerar Atestado de Combustíveis do Estado Maior em PDF: {str(e)}', 'danger')
+        return redirect(request.referrer or url_for('dashboard'))
+
+
+@app.route('/api/atestado/em/calcular-texto', methods=['POST', 'GET'])
+@login_required
+def api_calcular_texto_atestado_em():
+    """Recalcula dinamicamente o valor total e o texto padrão do Atestado do EM de acordo com as viaturas selecionadas."""
+    try:
+        dados = request.get_json(silent=True) or {}
+        placas = dados.get('placas') or request.form.getlist('placas') or request.args.getlist('placas')
+        if not placas and 'placas_selecionadas' in request.form:
+            placas = [p.strip().upper() for p in request.form.get('placas_selecionadas', '').split(',') if p.strip()]
+
+        placas_set = {p.strip().upper().replace('-', '').replace(' ', '') for p in placas if p}
+
+        abastecimentos = database.obter_todos_abastecimentos(limit=50000)
+        placas_em_padrao = {'IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78'}
+
+        if placas_set:
+            abastecimentos_em = [
+                a for a in abastecimentos
+                if str(a.get('placa', '')).strip().upper().replace('-', '').replace(' ', '') in placas_set
+            ]
+        else:
+            abastecimentos_em = [
+                a for a in abastecimentos
+                if str(a.get('placa', '')).strip().upper().replace('-', '').replace(' ', '') in placas_em_padrao
+                or 'EM' in str(a.get('fracao', '')).upper()
+            ]
+
+        total_valor = sum(float(a.get('valor_total') or 0.0) for a in abastecimentos_em)
+        from services.atestado_generator import gerar_texto_padrao_atestado_em
+        texto = gerar_texto_padrao_atestado_em(abastecimentos_em, total_valor)
+
+        val_formatado = f"R$ {total_valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return jsonify({
+            'sucesso': True,
+            'total_valor': round(total_valor, 2),
+            'total_formatado': val_formatado,
+            'qtd_abastecimentos': len(abastecimentos_em),
+            'texto': texto
+        })
+    except Exception as e:
+        return jsonify({'sucesso': False, 'erro': str(e)}), 400
+
+
+@app.route('/configuracoes/atestado-em', methods=['POST'])
+@login_required
+def salvar_config_atestado_em():
+    """Salva os dados de assinatura padrão do Atestado do Estado Maior."""
+    from services.report_config import set_atestado_em_config
+    dados = {
+        'modo': request.form.get('modo', 'chefe').strip(),
+        'chefe_nome': request.form.get('chefe_nome', '').strip(),
+        'chefe_cargo': request.form.get('chefe_cargo', '').strip(),
+        'respondendo_nome': request.form.get('respondendo_nome', '').strip(),
+        'respondendo_cargo': request.form.get('respondendo_cargo', '').strip(),
+        'gestor_nome': request.form.get('gestor_nome', '').strip(),
+        'gestor_cargo': request.form.get('gestor_cargo', '').strip(),
+    }
+    set_atestado_em_config(dados)
+    flash('Configuração de assinaturas do Atestado do Estado Maior salva com sucesso!', 'success')
     return redirect(request.referrer or url_for('dashboard'))
 
 

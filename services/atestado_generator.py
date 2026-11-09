@@ -554,3 +554,293 @@ def gerar_atestado_pdf(
 
     # Constrói o PDF em página única
     doc.build(elementos)
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ATESTADO DE COMBUSTÍVEIS - ESTADO MAIOR (EM)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def gerar_texto_padrao_atestado_em(
+    abastecimentos: Optional[List[Dict[str, Any]]] = None,
+    valor_total: Optional[float] = None
+) -> str:
+    """
+    Gera o texto padrão oficial do Atestado de Combustíveis específico para as
+    viaturas do Estado Maior (EM) com os valores, período e quinzena calculados dinamicamente.
+    """
+    if abastecimentos is None:
+        try:
+            import database
+            todos = database.obter_todos_abastecimentos(limit=50000)
+            placas_em = {'IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78'}
+            abastecimentos = [
+                a for a in todos
+                if str(a.get('placa', '')).strip().upper() in placas_em
+                or 'EM' in str(a.get('fracao', '')).upper()
+                or str(a.get('cidade_carga', '')).strip().upper() == 'EM'
+            ]
+        except Exception:
+            abastecimentos = []
+
+    if valor_total is None or valor_total <= 0:
+        if abastecimentos:
+            valor_total = sum(float(a.get('valor_total') or a.get('valor_abastecido') or 0.0) for a in abastecimentos)
+        else:
+            valor_total = 0.0
+
+    info_periodo = obter_dados_periodo_atestado(abastecimentos or [])
+    texto_periodo = info_periodo['texto_periodo']
+    quinzena_texto = info_periodo['quinzena']
+
+    val_num_str = f"{valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    val_extenso_str = valor_monetario_extenso(valor_total)
+
+    return (
+        f"Atesto, para devidos fins, os gastos de combustíveis, lubrificantes, "
+        f"filtros e lavagem da frota do Estado Maior do 46º Batalhão de Polícia Militar, perfazendo o valor total de "
+        f"<b>R$ {val_num_str}</b> ({val_extenso_str}), referente ao período de "
+        f"<b>{texto_periodo}</b>, correspondente a <b>{quinzena_texto} quinzena</b>, "
+        f"de acordo com os dados extraídos do Sistema Ticket Log, estando as empresas em "
+        f"conformidade com o que preconiza o Termo de Contrato constante no Processo "
+        f"Administrativo nº 05365-24.00/15-0, Pregão Eletrônico nº 100/CELIC/2016, "
+        f"bem como a NI 4.7/2018."
+    )
+
+
+def gerar_atestado_em_pdf(
+    pdf_path: str | Path,
+    abastecimentos: List[Dict[str, Any]],
+    valor_total: Optional[float] = None,
+    dados_assinatura: Optional[Dict[str, str]] = None,
+    texto_personalizado: Optional[str] = None
+) -> None:
+    """
+    Gera o PDF do ATESTADO DE COMBUSTÍVEIS DO ESTADO MAIOR (EM) do 46º BPM.
+    Contém apenas a assinatura da Chefia do P4/46º BPM (Chefe do P4/46º BPM ou Rsp. p/ Chefe do P4/46º BPM)
+    e do Gestor de Frota, ambas editáveis.
+    """
+    pdf_path = Path(pdf_path)
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Margens do modelo militar A4: Top 10mm, Left 30mm, Right 15mm, Bottom 20mm
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        leftMargin=30 * mm,
+        rightMargin=15 * mm,
+        topMargin=10 * mm,
+        bottomMargin=20 * mm
+    )
+
+    largura_util = A4[0] - (45 * mm)  # 210mm - 45mm = 165mm
+
+    base_dir = Path(__file__).resolve().parent.parent
+    img_dir = base_dir / "static" / "img"
+    img_brasao_rs = img_dir / "brasao_rs_armas.png"
+    img_brasao_bm = img_dir / "brasao_bm_atestado.png"
+    img_rodape = img_dir / "rodape_redes_sociais.png"
+
+    if valor_total is None or valor_total <= 0:
+        valor_total = sum(float(a.get('valor_total') or a.get('valor_abastecido') or 0.0) for a in abastecimentos)
+
+    info_periodo = obter_dados_periodo_atestado(abastecimentos)
+    hoje = datetime.now()
+    data_geracao_str = f"Quartel em Bagé, RS, {hoje.day:02d} de {MESES_PT[hoje.month]} de {hoje.year}."
+
+    # Configuração de assinaturas
+    from services.report_config import get_atestado_em_config, get_assinatura_config
+    cfg_em = get_atestado_em_config()
+    cfg_base = get_assinatura_config()
+
+    if dados_assinatura:
+        for k, v in dados_assinatura.items():
+            if v is not None and str(v).strip():
+                cfg_em[k] = str(v).strip()
+
+    modo = cfg_em.get('modo', 'chefe').lower()
+    chefe_nome = cfg_em.get('chefe_nome', 'LUCIANO CARDOSO LEAL').strip()
+    chefe_cargo = cfg_em.get('chefe_cargo', 'Cap PM – Chefe do P4/46º BPM').strip()
+    respondendo_nome = cfg_em.get('respondendo_nome', 'JULIANO INOCENTE VELEDA').strip()
+    respondendo_cargo = cfg_em.get('respondendo_cargo', '1º Ten PM – Rsp. p/ Chefe do P4/46º BPM').strip()
+    gestor_nome = cfg_em.get('gestor_nome', cfg_base.get('nome', 'RÓGER SANTANA MANZZINI')).strip()
+    gestor_cargo = cfg_em.get('gestor_cargo', f"{cfg_base.get('graduacao', 'SD PM')} – Gestor de frota 46º BPM").strip()
+
+    # Estilos
+    style_center_bold = ParagraphStyle(
+        'HeaderCenterBoldEM',
+        fontName='Times-Bold',
+        fontSize=12,
+        leading=14,
+        alignment=1,
+        textColor=colors.black
+    )
+    style_titulo = ParagraphStyle(
+        'TituloAtestadoEM',
+        fontName='Times-Bold',
+        fontSize=12,
+        leading=14,
+        alignment=1,
+        textColor=colors.black,
+        spaceAfter=0
+    )
+    style_corpo = ParagraphStyle(
+        'CorpoTextoEM',
+        fontName='Times-Roman',
+        fontSize=12,
+        leading=18,
+        alignment=4,
+        firstLineIndent=20 * mm,
+        textColor=colors.black
+    )
+    style_data = ParagraphStyle(
+        'DataGeracaoEM',
+        fontName='Times-Roman',
+        fontSize=12,
+        leading=15,
+        alignment=0,
+        textColor=colors.black
+    )
+    style_sig_cargo = ParagraphStyle(
+        'SigCargoEM',
+        fontName='Helvetica',
+        fontSize=8,
+        leading=10,
+        alignment=0,
+        textColor=colors.black
+    )
+    style_sig_nome = ParagraphStyle(
+        'SigNomeEM',
+        fontName='Helvetica-Bold',
+        fontSize=10,
+        leading=12,
+        alignment=0,
+        textColor=colors.black
+    )
+
+    elementos = []
+
+    # 1. Brasão RS
+    if img_brasao_rs.exists():
+        img_rs = RLImage(str(img_brasao_rs), width=21 * mm, height=26 * mm)
+        img_rs.hAlign = 'CENTER'
+        elementos.append(img_rs)
+        elementos.append(Spacer(1, 2 * mm))
+
+    # 2. Cabeçalho Oficial
+    elementos.append(Paragraph("ESTADO DO RIO GRANDE DO SUL", style_center_bold))
+    elementos.append(Paragraph("SECRETARIA DA SEGURANÇA PÚBLICA", style_center_bold))
+    elementos.append(Paragraph("BRIGADA MILITAR", style_center_bold))
+    elementos.append(Paragraph("CRPMFO – 46º BPM", style_center_bold))
+    elementos.append(Spacer(1, 10 * mm))
+
+    # 3. Título ATESTADO
+    elementos.append(Paragraph("ATESTADO", style_titulo))
+    elementos.append(Spacer(1, 10 * mm))
+
+    # 4. Texto do Atestado
+    if texto_personalizado and str(texto_personalizado).strip():
+        texto_principal = str(texto_personalizado).strip()
+    else:
+        texto_principal = gerar_texto_padrao_atestado_em(abastecimentos, valor_total)
+
+    import html
+    paragrafos = [p.strip() for p in texto_principal.replace('\r\n', '\n').split('\n\n') if p.strip()]
+    if not paragrafos:
+        paragrafos = [texto_principal.strip()]
+
+    for i, p_texto in enumerate(paragrafos):
+        p_html = p_texto.replace('\n', '<br/>')
+        try:
+            p_elem = Paragraph(p_html, style_corpo)
+        except Exception:
+            p_elem = Paragraph(html.escape(p_texto).replace('\n', '<br/>'), style_corpo)
+        elementos.append(p_elem)
+        if i < len(paragrafos) - 1:
+            elementos.append(Spacer(1, 4 * mm))
+
+    elementos.append(Spacer(1, 8 * mm))
+
+    # 5. Data de Geração
+    elementos.append(Paragraph(data_geracao_str, style_data))
+
+    # 6. Bloco de Assinaturas (Chefia P4 + Gestor de Frota)
+    # Empurra para o rodapé (duas assinaturas em linha única)
+    elementos.append(Spacer(1, 72 * mm))
+
+    col_w = largura_util / 2.0
+
+    if modo == 'respondendo':
+        celula_p4 = [
+            Paragraph(respondendo_nome, style_sig_nome),
+            Paragraph(respondendo_cargo, style_sig_cargo)
+        ]
+    else:
+        celula_p4 = [
+            Paragraph(chefe_nome, style_sig_nome),
+            Paragraph(chefe_cargo, style_sig_cargo)
+        ]
+
+    celula_gestor = [
+        Paragraph(gestor_nome, style_sig_nome),
+        Paragraph(gestor_cargo, style_sig_cargo)
+    ]
+
+    tab_assinaturas = Table([
+        [celula_p4, celula_gestor]
+    ], colWidths=[col_w, col_w])
+
+    tab_assinaturas.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+
+    # 7. Rodapé Oficial
+    style_rodape_end = ParagraphStyle(
+        'RodapeEnderecoEM',
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor("#444444")
+    )
+
+    bloco_endereco = [
+        Paragraph("Rua Cândido Portinari, 310, Floresta – Bagé/RS", style_rodape_end),
+        Paragraph("Fone: (53) 3240 3400", style_rodape_end),
+        Paragraph("E-mail: 46bpm-p4@bm.rs.gov.br", style_rodape_end),
+    ]
+
+    bloco_brasao_bm = []
+    if img_brasao_bm.exists():
+        img_bm = RLImage(str(img_brasao_bm), width=23 * mm, height=23 * mm)
+        img_bm.hAlign = 'RIGHT'
+        bloco_brasao_bm.append(img_bm)
+
+    tab_rodape = Table([
+        [bloco_endereco, bloco_brasao_bm]
+    ], colWidths=[largura_util - 30 * mm, 30 * mm])
+    tab_rodape.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+    ]))
+
+    bloco_final = [
+        tab_assinaturas,
+        Spacer(1, 9),
+        tab_rodape,
+        Spacer(1, 2 * mm)
+    ]
+
+    if img_rodape.exists():
+        img_redes = RLImage(str(img_rodape), width=largura_util, height=14.5 * mm)
+        img_redes.hAlign = 'CENTER'
+        bloco_final.append(img_redes)
+
+    elementos.append(KeepTogether(bloco_final))
+
+    doc.build(elementos)
