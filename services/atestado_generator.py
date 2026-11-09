@@ -657,10 +657,10 @@ def gerar_atestado_em_pdf(
                 cfg_em[k] = str(v).strip()
 
     modo = cfg_em.get('modo', 'chefe').lower()
-    chefe_nome = cfg_em.get('chefe_nome', 'LUCIANO CARDOSO LEAL').strip()
-    chefe_cargo = cfg_em.get('chefe_cargo', 'Cap PM – Chefe do P4/46º BPM').strip()
-    respondendo_nome = cfg_em.get('respondendo_nome', 'JULIANO INOCENTE VELEDA').strip()
-    respondendo_cargo = cfg_em.get('respondendo_cargo', '1º Ten PM – Rsp. p/ Chefe do P4/46º BPM').strip()
+    chefe_nome = cfg_em.get('chefe_nome', '').strip()
+    chefe_cargo = cfg_em.get('chefe_cargo', 'Chefe do P4/46º BPM').strip() or 'Chefe do P4/46º BPM'
+    respondendo_nome = cfg_em.get('respondendo_nome', '').strip()
+    respondendo_cargo = cfg_em.get('respondendo_cargo', 'Rsp. p/ Chefe do P4/46º BPM').strip() or 'Rsp. p/ Chefe do P4/46º BPM' 
     gestor_nome = cfg_em.get('gestor_nome', cfg_base.get('nome', 'RÓGER SANTANA MANZZINI')).strip()
     gestor_cargo = cfg_em.get('gestor_cargo', f"{cfg_base.get('graduacao', 'SD PM')} – Gestor de frota 46º BPM").strip()
 
@@ -769,15 +769,15 @@ def gerar_atestado_em_pdf(
     col_w = largura_util / 2.0
 
     if modo == 'respondendo':
-        celula_p4 = [
-            Paragraph(respondendo_nome, style_sig_nome),
-            Paragraph(respondendo_cargo, style_sig_cargo)
-        ]
+        celula_p4 = []
+        if respondendo_nome:
+            celula_p4.append(Paragraph(respondendo_nome, style_sig_nome))
+        celula_p4.append(Paragraph(respondendo_cargo, style_sig_cargo))
     else:
-        celula_p4 = [
-            Paragraph(chefe_nome, style_sig_nome),
-            Paragraph(chefe_cargo, style_sig_cargo)
-        ]
+        celula_p4 = []
+        if chefe_nome:
+            celula_p4.append(Paragraph(chefe_nome, style_sig_nome))
+        celula_p4.append(Paragraph(chefe_cargo, style_sig_cargo))
 
     celula_gestor = [
         Paragraph(gestor_nome, style_sig_nome),
