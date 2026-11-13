@@ -33,7 +33,11 @@ from services.atestado_generator import valor_monetario_extenso, MESES_PT
 
 
 def formatar_data_militar(dt: Optional[datetime | str] = None, cidade: Optional[str] = None) -> str:
-    """Formata a data no padrão militar tradicional (ex: Quartel em Bagé, RS, 1º de outubro de 2026)."""
+    """
+    Formata a data no padrão militar tradicional.
+    Independente da cidade de onde é a carga da viatura, a data militar do atestado
+    será sempre 'Quartel em Bagé, RS, ...' com 'Bagé' tendo somente a letra B maiúscula.
+    """
     if dt is None:
         dt = datetime.now()
     elif isinstance(dt, str):
@@ -44,8 +48,7 @@ def formatar_data_militar(dt: Optional[datetime | str] = None, cidade: Optional[
 
     dia_str = "1º" if dt.day == 1 else f"{dt.day:02d}"
     mes_str = MESES_PT.get(dt.month, 'janeiro')
-    local = f"Quartel em {cidade.strip()}, " if cidade and cidade.strip() else "Quartel, "
-    return f"{local}{dia_str} de {mes_str} de {dt.year}."
+    return f"Quartel em Bagé, RS, {dia_str} de {mes_str} de {dt.year}."
 
 
 def gerar_texto_padrao_recebimento(dados: Dict[str, Any]) -> str:
@@ -64,6 +67,8 @@ def gerar_texto_padrao_recebimento(dados: Dict[str, Any]) -> str:
     modelo = str(dados.get('viatura_modelo') or 'Hilux').strip()
     placa = str(dados.get('viatura_placa') or '').strip().upper()
     cidade = str(dados.get('cidade_carga') or 'Bagé').strip()
+    if cidade.upper() in ('BAGÉ', 'BAGE'):
+        cidade = 'Bagé'
 
     # Dados da Empresa / Prestador
     empresa = str(dados.get('empresa_nome') or dados.get('oficina') or 'EMPRESA PRESTADORA').strip()
@@ -266,7 +271,7 @@ def gerar_atestado_recebimento_pdf(
 
     # 5. Data Militar — usa a cidade da viatura dinamicamente
     cidade_doc = str(dados.get('cidade_carga') or '').strip()
-    data_str = formatar_data_militar(dados.get('data_servico') or dados.get('data_geracao'), cidade=cidade_doc)
+    data_str = formatar_data_militar(dados.get('data_servico') or dados.get('data_geracao'), cidade='Bagé')
     elementos.append(Paragraph(data_str, style_data))
 
     # 6. Bloco de Assinatura do Militar Responsável (Espaço de 24mm para GOV.BR)

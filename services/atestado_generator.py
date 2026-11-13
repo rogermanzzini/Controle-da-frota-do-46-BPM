@@ -211,6 +211,25 @@ def obter_dados_periodo_atestado(abastecimentos: List[Dict[str, Any]]) -> Dict[s
     }
 
 
+def obter_data_quartel_bage(dt=None) -> str:
+    """
+    Retorna a data oficial formatada no padrão militar do 46º BPM.
+    Independente da cidade de onde é a carga da viatura, a data do atestado
+    será sempre 'Quartel em Bagé, RS, ...' com 'Bagé' tendo somente a letra B maiúscula.
+    """
+    if dt is None:
+        dt = datetime.now()
+    elif isinstance(dt, str):
+        try:
+            dt = datetime.strptime(dt[:10], '%Y-%m-%d')
+        except Exception:
+            dt = datetime.now()
+
+    dia_str = "1º" if dt.day == 1 else f"{dt.day:02d}"
+    mes_str = MESES_PT.get(dt.month, 'janeiro')
+    return f"Quartel em Bagé, RS, {dia_str} de {mes_str} de {dt.year}."
+
+
 def gerar_texto_padrao_atestado(
     abastecimentos: Optional[List[Dict[str, Any]]] = None,
     valor_total: Optional[float] = None
@@ -299,7 +318,7 @@ def gerar_atestado_pdf(
 
     # Data de geração atualizada dinamicamente
     hoje = datetime.now()
-    data_geracao_str = f"Quartel em Bagé, RS, {hoje.day:02d} de {MESES_PT[hoje.month]} de {hoje.year}."
+    data_geracao_str = obter_data_quartel_bage(hoje)
 
     # Configuração do militar gestor de frota
     cfg = get_assinatura_config()
@@ -644,7 +663,7 @@ def gerar_atestado_em_pdf(
 
     info_periodo = obter_dados_periodo_atestado(abastecimentos)
     hoje = datetime.now()
-    data_geracao_str = f"Quartel em Bagé, RS, {hoje.day:02d} de {MESES_PT[hoje.month]} de {hoje.year}."
+    data_geracao_str = obter_data_quartel_bage(hoje)
 
     # Configuração de assinaturas
     from services.report_config import get_atestado_em_config, get_assinatura_config
