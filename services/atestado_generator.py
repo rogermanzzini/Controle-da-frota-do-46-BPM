@@ -788,25 +788,44 @@ def gerar_atestado_em_pdf(
 
     col_w = largura_util / 2.0
 
-    if modo == 'respondendo':
+    if modo in ('gestor', 'gestor_frota', 'gestor_solo'):
+        # Opção: Somente o Gestor de frota do 46º BPM assina, mantendo-se estritamente à esquerda do documento
+        g_cargo = gestor_cargo if gestor_cargo else "Sd PM – Gestor de frota 46º BPM"
+        celula_gestor = [
+            Paragraph(gestor_nome, style_sig_nome),
+            Paragraph(g_cargo, style_sig_cargo)
+        ]
+        tab_assinaturas = Table([
+            [celula_gestor, '']
+        ], colWidths=[col_w, col_w])
+    elif modo == 'respondendo':
         celula_p4 = []
         if respondendo_nome:
             celula_p4.append(Paragraph(respondendo_nome, style_sig_nome))
         celula_p4.append(Paragraph(respondendo_cargo, style_sig_cargo))
+
+        celula_gestor = [
+            Paragraph(gestor_nome, style_sig_nome),
+            Paragraph(gestor_cargo, style_sig_cargo)
+        ]
+
+        tab_assinaturas = Table([
+            [celula_p4, celula_gestor]
+        ], colWidths=[col_w, col_w])
     else:
         celula_p4 = []
         if chefe_nome:
             celula_p4.append(Paragraph(chefe_nome, style_sig_nome))
         celula_p4.append(Paragraph(chefe_cargo, style_sig_cargo))
 
-    celula_gestor = [
-        Paragraph(gestor_nome, style_sig_nome),
-        Paragraph(gestor_cargo, style_sig_cargo)
-    ]
+        celula_gestor = [
+            Paragraph(gestor_nome, style_sig_nome),
+            Paragraph(gestor_cargo, style_sig_cargo)
+        ]
 
-    tab_assinaturas = Table([
-        [celula_p4, celula_gestor]
-    ], colWidths=[col_w, col_w])
+        tab_assinaturas = Table([
+            [celula_p4, celula_gestor]
+        ], colWidths=[col_w, col_w])
 
     tab_assinaturas.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),

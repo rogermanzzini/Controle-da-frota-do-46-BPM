@@ -124,7 +124,7 @@ def set_atestado_config(dados: Dict[str, str]) -> None:
 
 
 DEFAULT_ATESTADO_EM_CONFIG = {
-    "modo": "chefe",  # "chefe" (Chefe do P4/46º BPM) ou "respondendo" (Rsp. p/ Chefe do P4/46º BPM)
+    "modo": "chefe",  # "chefe" (Chefe do P4/46º BPM), "respondendo" (Rsp. p/ Chefe) ou "gestor" (Gestor de frota)
     "chefe_nome": "",
     "chefe_cargo": "Chefe do P4/46º BPM",
     "respondendo_nome": "",

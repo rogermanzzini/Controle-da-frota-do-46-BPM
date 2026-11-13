@@ -614,14 +614,14 @@
                             </div>
                         </div>
 
-                        <!-- Modalidades de Assinatura da Chefia do P4 -->
+                        <!-- Modalidades de Assinatura do Atestado do EM -->
                         <div class="mb-3">
                             <label class="form-label small fw-bold text-light mb-2">
-                                <i class="fa-solid fa-signature text-warning me-1"></i> Modalidade de Assinatura da Chefia do P4/46º BPM:
+                                <i class="fa-solid fa-signature text-warning me-1"></i> Opção de Assinatura:
                             </label>
                             <div class="row g-2">
                                 <!-- Opção 1: Chefe do P4/46º BPM -->
-                                <div class="col-md-6 col-12">
+                                <div class="col-md-4 col-12">
                                     <label class="p-3 rounded bg-dark border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start position-relative hover-glow" for="modoChefeP4">
                                         <div class="form-check mb-0">
                                             <input class="form-check-input" type="radio" name="modo" id="modoChefeP4" value="chefe" {% if atestado_em_config.modo == 'chefe' or not atestado_em_config.modo %}checked{% endif %}>
@@ -631,11 +631,21 @@
                                 </div>
 
                                 <!-- Opção 2: Rsp. p/ Chefe do P4/46º BPM -->
-                                <div class="col-md-6 col-12">
+                                <div class="col-md-4 col-12">
                                     <label class="p-3 rounded bg-dark border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start position-relative hover-glow" for="modoRspChefeP4">
                                         <div class="form-check mb-0">
                                             <input class="form-check-input" type="radio" name="modo" id="modoRspChefeP4" value="respondendo" {% if atestado_em_config.modo == 'respondendo' %}checked{% endif %}>
                                             <span class="form-check-label fw-bold text-white d-block ms-1">Rsp. p/ Chefe do P4/46º BPM</span>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <!-- Opção 3: Gestor de frota do 46º BPM (Somente este assina à esquerda) -->
+                                <div class="col-md-4 col-12">
+                                    <label class="p-3 rounded bg-dark border border-secondary border-opacity-25 d-block h-100 cursor-pointer text-start position-relative hover-glow" for="modoGestorFrota">
+                                        <div class="form-check mb-0">
+                                            <input class="form-check-input" type="radio" name="modo" id="modoGestorFrota" value="gestor" {% if atestado_em_config.modo == 'gestor' %}checked{% endif %}>
+                                            <span class="form-check-label fw-bold text-white d-block ms-1">Gestor de frota do 46º BPM</span>
                                         </div>
                                     </label>
                                 </div>
