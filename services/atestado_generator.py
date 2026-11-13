@@ -590,10 +590,11 @@ def gerar_texto_padrao_atestado_em(
         try:
             import database
             todos = database.obter_todos_abastecimentos(limit=50000)
-            placas_em = {'IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78'}
+            v_em = database.obter_viaturas_estado_maior()
+            placas_em = {str(v.get('placa', '')).strip().upper().replace('-', '').replace(' ', '') for v in v_em if v.get('placa')}
             abastecimentos = [
                 a for a in todos
-                if str(a.get('placa', '')).strip().upper() in placas_em
+                if str(a.get('placa', '')).strip().upper().replace('-', '').replace(' ', '') in placas_em
                 or 'EM' in str(a.get('fracao', '')).upper()
                 or str(a.get('cidade_carga', '')).strip().upper() in ('EM', 'BAGÉ/EM', 'BAGE/EM')
             ]

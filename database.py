@@ -566,13 +566,16 @@ def salvar_veiculos_alvo(lista_veiculos: List[Dict[str, Any]]) -> int:
         marca = str(v.get('marca', '')).strip()
         cidade_carga = str(v.get('cidade_carga', '')).strip()
 
-        # Determina cidade e fração oficiais para não cair em padrão genérico
-        from services.excel_processor import obter_cidade_e_fracao_viatura
-        cid_resumo, frac_lbl = obter_cidade_e_fracao_viatura(placa, prefixo, cidade_carga, fracao)
-        if not cidade_carga or cidade_carga.lower() in ('bagé', 'bage', '46º bpm'):
+        from services.excel_processor import normalizar_cidade_resumo, obter_cidade_e_fracao_viatura
+        if cidade_carga and cidade_carga.strip() and cidade_carga.strip().upper() not in ('46º BPM', 'BM'):
+            cidade_carga = normalizar_cidade_resumo(cidade_carga)
+            if not fracao:
+                fracao = '46º BPM - EM' if cidade_carga == 'Bagé/EM' else f"46º BPM - {cidade_carga.upper()}"
+        else:
+            cid_resumo, frac_lbl = obter_cidade_e_fracao_viatura(placa, prefixo, '', fracao)
             cidade_carga = cid_resumo
-        if not fracao or fracao in ('46º BPM', 'EM'):
-            fracao = '46º BPM - EM' if (frac_lbl == 'EM' or cid_resumo == 'EM') else f"46º BPM - {frac_lbl}"
+            if not fracao:
+                fracao = '46º BPM - EM' if (frac_lbl == 'EM' or cid_resumo == 'Bagé/EM') else f"46º BPM - {frac_lbl}"
 
         cursor.execute('''
             INSERT INTO veiculos_alvo (placa, prefixo, marca, modelo, cidade_carga, fracao, tipo_combustivel, ativo)
@@ -592,6 +595,32 @@ def salvar_veiculos_alvo(lista_veiculos: List[Dict[str, Any]]) -> int:
     conn.close()
     return inseridos_ou_atualizados
 
+
+
+def obter_veiculo_por_placa(placa: str):
+    """Busca uma viatura cadastrada pela placa normalizada."""
+    if not placa:
+        return None
+    p_limpa = str(placa).strip().upper().replace('-', '').replace(' ', '')
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM veiculos_alvo WHERE REPLACE(REPLACE(UPPER(placa), "-", ""), " ", "") = ? LIMIT 1', (p_limpa,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def obter_veiculo_por_prefixo(prefixo: str):
+    """Busca uma viatura cadastrada pelo prefixo."""
+    if not prefixo:
+        return None
+    pref_limpo = str(prefixo).strip().upper()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM veiculos_alvo WHERE UPPER(TRIM(prefixo)) = ? LIMIT 1', (pref_limpo,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 def obter_veiculos_alvo(apenas_ativos: bool = True) -> List[Dict[str, Any]]:
     """Retorna a lista de viaturas alvo cadastradas no SQLite."""
@@ -624,8 +653,8 @@ def obter_veiculos_com_abastecimento(importacao_id: Optional[int] = None) -> Lis
             a.placa,
             COALESCE(v.prefixo, a.prefixo, a.placa) as prefixo,
             COALESCE(v.modelo, a.modelo, 'Não informado') as modelo,
-            COALESCE(v.cidade_carga, CASE WHEN a.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78') THEN 'Bagé/EM' ELSE 'Bagé' END) as cidade,
-            COALESCE(v.cidade_carga, CASE WHEN a.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78') THEN 'Bagé/EM' ELSE 'Bagé' END) as cidade_carga,
+            COALESCE(v.cidade_carga, 'Bagé') as cidade,
+            COALESCE(v.cidade_carga, 'Bagé') as cidade_carga,
             CASE 
                 WHEN COALESCE(v.fracao, a.fracao, '') IN ('EM', '46º BPM - EM') THEN '46º BPM - EM'
                 ELSE COALESCE(v.fracao, a.fracao, '46º BPM')
@@ -665,8 +694,7 @@ def obter_viaturas_estado_maior(importacao_id: Optional[int] = None) -> List[Dic
             COALESCE(SUM(a.litros), 0.0) as total_litros
         FROM veiculos_alvo v
         LEFT JOIN abastecimentos a ON v.placa = a.placa {where_imp}
-        WHERE v.fracao = '46º BPM - EM' OR v.cidade_carga IN ('EM', 'Bagé/EM') 
-           OR v.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78')
+        WHERE v.cidade_carga IN ('EM', 'Bagé/EM', 'BAGE/EM') OR v.fracao = '46º BPM - EM' OR v.fracao LIKE '%EM%'
         GROUP BY v.placa
         ORDER BY CASE WHEN v.prefixo GLOB '[0-9]*' THEN 0 ELSE 1 END, CAST(v.prefixo AS INTEGER), v.prefixo, v.placa
     '''
@@ -807,8 +835,8 @@ def obter_resumo_por_viatura(importacao_id: Optional[int] = None) -> List[Dict[s
             a.placa,
             COALESCE(v.prefixo, a.prefixo) as prefixo,
             COALESCE(v.modelo, a.modelo, 'Não informado') as modelo,
-            COALESCE(v.cidade_carga, CASE WHEN a.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78') THEN 'Bagé/EM' ELSE 'Bagé' END) as cidade,
-            COALESCE(v.cidade_carga, CASE WHEN a.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78') THEN 'Bagé/EM' ELSE 'Bagé' END) as cidade_carga,
+            COALESCE(v.cidade_carga, 'Bagé') as cidade,
+            COALESCE(v.cidade_carga, 'Bagé') as cidade_carga,
             CASE 
                 WHEN COALESCE(v.fracao, a.fracao, '') IN ('EM', '46º BPM - EM') THEN '46º BPM - EM'
                 ELSE COALESCE(v.fracao, a.fracao, '46º BPM')

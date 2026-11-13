@@ -881,7 +881,8 @@ def gerar_atestado_em_pdf_route():
         placas_set = {p.strip().upper().replace('-', '').replace(' ', '') for p in placas_sel if p}
 
         abastecimentos = database.obter_todos_abastecimentos(limit=50000)
-        placas_em_padrao = {'IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78'}
+        viaturas_em_db = database.obter_viaturas_estado_maior()
+        placas_em_padrao = {str(v.get('placa', '')).strip().upper().replace('-', '').replace(' ', '') for v in viaturas_em_db if v.get('placa')}
 
         if placas_set:
             abastecimentos_em = [
@@ -961,7 +962,8 @@ def api_calcular_texto_atestado_em():
         placas_set = {p.strip().upper().replace('-', '').replace(' ', '') for p in placas if p}
 
         abastecimentos = database.obter_todos_abastecimentos(limit=50000)
-        placas_em_padrao = {'IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78'}
+        viaturas_em_db = database.obter_viaturas_estado_maior()
+        placas_em_padrao = {str(v.get('placa', '')).strip().upper().replace('-', '').replace(' ', '') for v in viaturas_em_db if v.get('placa')}
 
         if placas_set:
             abastecimentos_em = [

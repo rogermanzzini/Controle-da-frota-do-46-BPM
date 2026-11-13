@@ -80,7 +80,7 @@ COLUNAS_MAPEAMENTO = {
     'valor_unitario': ['valor_unitario', 'preco_litro', 'vl_unitario', 'preco_unitario', 'unitario', 'valor_litro', 'valor/litro'],
     'tipo_combustivel': ['combustivel', 'tipo_combustivel', 'produto', 'descricao_produto', 'tipo_produto', 'desc_combustivel', 'servico'],
     'posto': ['posto', 'estabelecimento', 'nome_estabelecimento', 'nome_fantasia', 'razao_social', 'nome_posto', 'posto_combustivel'],
-    'cidade': ['cidade', 'municipio', 'cidade_posto', 'localidade', 'cidade_abastecimento'],
+    'cidade': ['cidade', 'cidade_carga', 'carga', 'cidade_de_carga', 'municipio', 'cidade_posto', 'localidade', 'cidade_abastecimento', 'local', 'fracao_cidade'],
     'motorista': ['motorista', 'condutor', 'nome_motorista', 'policial'],
     'modelo': ['modelo', 'marca_modelo', 'descricao', 'tipo', 'veiculo_modelo', 'descricao_veiculo', 'marca/modelo'],
     'fracao': ['fracao', 'companhia', 'cia', 'pelotao', 'unidade', 'lotacao', 'opm', 'subsetor', 'batalhao', 'responsavel']
@@ -318,32 +318,52 @@ def obter_cidade_e_fracao_viatura(
     fracao_hint: str = ''
 ) -> Tuple[str, str]:
     """
-    Retorna (cidade_resumo, fracao_label) infalível para qualquer viatura.
-    Prioriza o mapa oficial do 46º BPM por placa ou prefixo.
-    Se não estiver no mapa oficial, analisa cidade_hint e fracao_hint.
+    Retorna (cidade_resumo, fracao_label) dinâmico para qualquer viatura ou equipamento (EQP).
+    PRIORIDADE TOTAL: respeita a cidade e fração informadas na planilha de carga fornecida.
+    Se não informadas, consulta a viatura cadastrada no banco de dados SQLite.
+    Apenas como último recurso (se não cadastrada ainda), consulta o mapa padrão do batalhão.
     """
+    # 1. Precedência absoluta para o dado informado na planilha com a carga das viaturas
+    hint = f"{cidade_hint} {fracao_hint}".strip()
+    if hint:
+        hint_up = hint.upper()
+        if 'BAGÉ/EM' in hint_up or 'BAGE/EM' in hint_up or hint_up in ('EM', 'ESTADO MAIOR', 'ESTADO-MAIOR', '46º BPM - EM'):
+            return 'Bagé/EM', 'EM'
+        for c_nome in ['Dom Pedrito', 'Lavras do Sul', 'Pinheiro Machado', 'Pedras Altas', 'Candiota', 'Aceguá', 'Hulha Negra']:
+            if c_nome.upper() in hint_up:
+                return c_nome, c_nome.upper()
+        if 'BAGÉ' in hint_up or 'BAGE' in hint_up:
+            return 'Bagé', 'BAGÉ'
+        cid_norm = normalizar_cidade_resumo(cidade_hint or fracao_hint)
+        return cid_norm, cid_norm.upper()
+
+    # 2. Se a planilha não trouxe cidade/fração, busca no cadastro existente no banco (veiculos_alvo)
     p_norm = normalizar_placa(placa)
     pref_norm = normalizar_prefixo(prefixo)
+    try:
+        import database
+        v_cadastrada = database.obter_veiculo_por_placa(p_norm) if p_norm else None
+        if not v_cadastrada and pref_norm:
+            v_cadastrada = database.obter_veiculo_por_prefixo(pref_norm)
+        if v_cadastrada and v_cadastrada.get('cidade_carga'):
+            c_db = v_cadastrada.get('cidade_carga')
+            c_norm = normalizar_cidade_resumo(c_db)
+            f_lbl = 'EM' if c_norm == 'Bagé/EM' else c_norm.upper()
+            return c_norm, f_lbl
+    except Exception:
+        pass
 
+    # 3. Fallback inicial apenas se a viatura não tiver cadastro no banco
     info = MAPA_OFICIAL_VIATURAS_46BPM.get(p_norm)
     if not info and pref_norm:
         info = MAPA_PREFIXOS_46BPM.get(pref_norm)
 
     if info:
         cid_resumo = info['cidade']
-        frac_label = 'EM' if cid_resumo == 'EM' else cid_resumo.upper()
+        frac_label = 'EM' if cid_resumo in ('EM', 'Bagé/EM') else cid_resumo.upper()
         return cid_resumo, frac_label
 
-    # Fallback inteligente para viaturas externas
-    hint = f"{cidade_hint} {fracao_hint}".strip().upper()
-    if 'BAGÉ/EM' in hint or 'BAGE/EM' in hint or 'EM' in hint or 'ESTADO MAIOR' in hint or 'ESTADO-MAIOR' in hint:
-        return 'Bagé/EM', 'EM'
-    for c_nome in ['Dom Pedrito', 'Lavras do Sul', 'Pinheiro Machado', 'Pedras Altas', 'Candiota', 'Aceguá', 'Hulha Negra', 'Bagé']:
-        if c_nome.upper() in hint:
-            return c_nome, c_nome.upper()
-
-    cid_norm = normalizar_cidade_resumo(cidade_hint or fracao_hint)
-    return cid_norm, cid_norm.upper()
+    return 'Bagé', 'BAGÉ'
 
 
 def extrair_placas_de_texto(texto: str) -> List[Dict[str, Any]]:
