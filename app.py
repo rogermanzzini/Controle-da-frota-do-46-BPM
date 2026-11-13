@@ -1790,11 +1790,12 @@ def gerar_atestado_recebimento_route():
 @app.route('/api/manutencao/atestado/texto-preview', methods=['POST', 'GET'])
 @login_required
 def api_texto_preview_recebimento():
-    """Retorna o texto padrão dinamicamente calculado para o Atestado de Recebimento."""
-    from services.atestado_recebimento_generator import gerar_texto_padrao_recebimento
+    """Retorna o texto padrão dinamicamente calculado e a data militar para o Atestado de Recebimento."""
+    from services.atestado_recebimento_generator import gerar_texto_padrao_recebimento, formatar_data_militar
     dados = request.get_json(silent=True) or request.form or {}
     texto = gerar_texto_padrao_recebimento(dados)
-    return jsonify({'texto': texto})
+    data_formatada = formatar_data_militar(dados.get('data_servico'))
+    return jsonify({'texto': texto, 'data_formatada': data_formatada})
 
 
 @app.route('/api/manutencao/viatura-info/<viatura_prefixo>')

@@ -621,25 +621,32 @@
                             </div>
                         </div>
 
-                        <!-- Anexo O.S., Número da OS Ticket Log e Empresa -->
+                        <!-- Anexo O.S., Número da OS Ticket Log, Data e Empresa -->
                         <div class="row g-2 mt-2">
-                            <div class="col-md-3 col-6">
+                            <div class="col-md-2 col-6">
                                 <label class="form-label small text-warning mb-1 fw-bold">
                                     <i class="fa-solid fa-file-invoice me-1"></i>Nº OS Ticket Log *
                                 </label>
                                 <input type="text" name="numero_os" id="atestado_num_os" maxlength="8" class="form-control form-control-sm bg-warning border-warning font-monospace fw-bold" style="color: #000000 !important;" placeholder="Ex: 19525623" required>
-                                <small class="text-secondary" style="font-size: 0.72rem;">8 algarismos (Nome da pasta)</small>
+                                <small class="text-secondary" style="font-size: 0.72rem;">8 algarismos</small>
                             </div>
                             <div class="col-md-3 col-6">
                                 <label class="form-label small text-secondary mb-1">Anexo da O.S. (Ticket Log)</label>
                                 <input type="file" name="arquivo_os" id="arquivo_os_input" accept=".xml,.pdf,.jpg,.jpeg,.png" class="form-control form-control-sm bg-dark text-light border-secondary">
-                                <small id="os_extracao_status" class="text-success mt-1 d-none"><i class="fa-solid fa-circle-check me-1"></i>Dados da OS extraídos</small>
+                                <small id="os_extracao_status" class="text-success mt-1 d-none"><i class="fa-solid fa-circle-check me-1"></i>Dados extraídos</small>
                             </div>
-                            <div class="col-md-3 col-12">
+                            <div class="col-md-2 col-6">
+                                <label class="form-label small text-secondary mb-1 fw-semibold">
+                                    <i class="fa-solid fa-calendar-day text-info me-1"></i>Data do Atestado
+                                </label>
+                                <input type="date" name="data_servico" id="atestado_data_doc" class="form-control form-control-sm bg-dark text-light border-secondary" value="{{ agora.strftime('%Y-%m-%d') }}">
+                                <small class="text-secondary" style="font-size: 0.72rem;">Quartel em Bagé, RS</small>
+                            </div>
+                            <div class="col-md-3 col-6">
                                 <label class="form-label small text-secondary mb-1">Empresa / Razão Social *</label>
                                 <input type="text" name="empresa_nome" id="atestado_empresa_nome" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Ex: LEONARDO NOBLE BRUXEL" value="{{ empresa_padrao.empresa_nome }}" required>
                             </div>
-                            <div class="col-md-3 col-6">
+                            <div class="col-md-2 col-6">
                                 <label class="form-label small text-secondary mb-1">CNPJ da Empresa *</label>
                                 <input type="text" name="empresa_cnpj" id="atestado_empresa_cnpj" class="form-control form-control-sm bg-dark text-light border-secondary font-monospace" placeholder="15.229.039/0001-52" value="{{ empresa_padrao.empresa_cnpj }}" required>
                             </div>
@@ -698,13 +705,21 @@
                             </div>
                         </div>
 
-                        <!-- Prévia Visual da Assinatura no PDF -->
+                        <!-- Prévia Visual da Assinatura e Data Militar no PDF -->
                         <div class="p-2 rounded bg-black bg-opacity-25 border border-secondary border-opacity-25 mt-2">
-                            <small class="text-secondary d-block" style="font-size: 0.72rem;">PRÉVIA DA ASSINATURA NO ATESTADO (PDF):</small>
-                            <span class="fw-bold text-white" id="preview_atestador_nome">{{ atestador_padrao.nome }}</span>
-                            <span class="text-secondary small"> – </span>
-                            <span class="text-info small" id="preview_atestador_cargo">{{ atestador_padrao.graduacao }} – {{ atestador_padrao.cargo }}</span>
-                            <span class="text-muted small ms-2">(Id Func: <span class="font-monospace text-warning" id="preview_atestador_idfunc">{{ atestador_padrao.id_func }}</span>)</span>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <small class="text-secondary d-block" style="font-size: 0.72rem;">PRÉVIA DA ASSINATURA NO ATESTADO (PDF):</small>
+                                    <span class="fw-bold text-white" id="preview_atestador_nome">{{ atestador_padrao.nome }}</span>
+                                    <span class="text-secondary small"> – </span>
+                                    <span class="text-info small" id="preview_atestador_cargo">{{ atestador_padrao.graduacao }} – {{ atestador_padrao.cargo }}</span>
+                                    <span class="text-muted small ms-2">(Id Func: <span class="font-monospace text-warning" id="preview_atestador_idfunc">{{ atestador_padrao.id_func }}</span>)</span>
+                                </div>
+                                <div class="text-md-end">
+                                    <small class="text-secondary d-block" style="font-size: 0.72rem;">DATA MILITAR NO DOCUMENTO:</small>
+                                    <span class="badge bg-dark border border-secondary text-info font-monospace" id="preview_data_militar_badge">Quartel em Bagé, RS</span>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Checkbox Salvar como Padrão Permanente -->
@@ -1321,6 +1336,7 @@ document.addEventListener('DOMContentLoaded', function () {
         let tipo = 'nfse';
         radioTipos.forEach(r => { if (r.checked) tipo = r.value; });
 
+        const atestadoDataDoc = document.getElementById('atestado_data_doc');
         const dados = {
             tipo_documento_fiscal: tipo,
             viatura_prefixo: vtrSelect ? vtrSelect.value : '',
@@ -1328,6 +1344,7 @@ document.addEventListener('DOMContentLoaded', function () {
             viatura_modelo: vtrModelo ? vtrModelo.value : '',
             viatura_placa: vtrPlaca ? vtrPlaca.value : '',
             cidade_carga: vtrCidade ? vtrCidade.value : '',
+            data_servico: atestadoDataDoc ? atestadoDataDoc.value : '',
             numero_danfe: numDanfe ? numDanfe.value.trim() : '',
             valor_danfe: valDanfe ? parseMoedaBR(valDanfe.value) : 0.0,
             numero_nfse: numNfse ? numNfse.value.trim() : '',
@@ -1350,6 +1367,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (data && data.texto) {
                 textareaTexto.value = data.texto;
             }
+            const previewDataEl = document.getElementById('preview_data_militar_badge');
+            if (previewDataEl && data.data_formatada) {
+                previewDataEl.innerText = data.data_formatada;
+            }
         })
         .catch(err => console.error('Erro ao atualizar preview:', err));
     }
@@ -1358,7 +1379,7 @@ document.addEventListener('DOMContentLoaded', function () {
         btnAtualizar.addEventListener('click', atualizarTextoPreview);
     }
 
-    [numDanfe, valDanfe, numNfse, valNfse, empNome, empCnpj, vtrMarca, vtrModelo, vtrPlaca, vtrCidade].forEach(el => {
+    [numDanfe, valDanfe, numNfse, valNfse, empNome, empCnpj, vtrMarca, vtrModelo, vtrPlaca, vtrCidade, document.getElementById('atestado_data_doc')].forEach(el => {
         if (el) {
             el.addEventListener('input', atualizarTextoPreview);
             el.addEventListener('change', atualizarTextoPreview);
