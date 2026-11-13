@@ -624,8 +624,8 @@ def obter_veiculos_com_abastecimento(importacao_id: Optional[int] = None) -> Lis
             a.placa,
             COALESCE(v.prefixo, a.prefixo, a.placa) as prefixo,
             COALESCE(v.modelo, a.modelo, 'Não informado') as modelo,
-            COALESCE(v.cidade_carga, 'Bagé') as cidade,
-            COALESCE(v.cidade_carga, 'Bagé') as cidade_carga,
+            COALESCE(v.cidade_carga, CASE WHEN a.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78') THEN 'Bagé/EM' ELSE 'Bagé' END) as cidade,
+            COALESCE(v.cidade_carga, CASE WHEN a.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78') THEN 'Bagé/EM' ELSE 'Bagé' END) as cidade_carga,
             CASE 
                 WHEN COALESCE(v.fracao, a.fracao, '') IN ('EM', '46º BPM - EM') THEN '46º BPM - EM'
                 ELSE COALESCE(v.fracao, a.fracao, '46º BPM')
@@ -658,14 +658,14 @@ def obter_viaturas_estado_maior(importacao_id: Optional[int] = None) -> List[Dic
             v.placa,
             COALESCE(v.prefixo, '') as prefixo,
             COALESCE(v.modelo, '') as modelo,
-            COALESCE(v.cidade_carga, 'EM') as cidade_carga,
+            COALESCE(v.cidade_carga, 'Bagé/EM') as cidade_carga,
             COALESCE(v.fracao, '46º BPM - EM') as fracao,
             COUNT(a.id) as qtd_abastecimentos,
             COALESCE(SUM(a.valor_total), 0.0) as total_valor,
             COALESCE(SUM(a.litros), 0.0) as total_litros
         FROM veiculos_alvo v
         LEFT JOIN abastecimentos a ON v.placa = a.placa {where_imp}
-        WHERE v.fracao = '46º BPM - EM' OR v.cidade_carga = 'EM' 
+        WHERE v.fracao = '46º BPM - EM' OR v.cidade_carga IN ('EM', 'Bagé/EM') 
            OR v.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78')
         GROUP BY v.placa
         ORDER BY CASE WHEN v.prefixo GLOB '[0-9]*' THEN 0 ELSE 1 END, CAST(v.prefixo AS INTEGER), v.prefixo, v.placa
@@ -807,8 +807,8 @@ def obter_resumo_por_viatura(importacao_id: Optional[int] = None) -> List[Dict[s
             a.placa,
             COALESCE(v.prefixo, a.prefixo) as prefixo,
             COALESCE(v.modelo, a.modelo, 'Não informado') as modelo,
-            COALESCE(v.cidade_carga, 'Bagé') as cidade,
-            COALESCE(v.cidade_carga, 'Bagé') as cidade_carga,
+            COALESCE(v.cidade_carga, CASE WHEN a.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78') THEN 'Bagé/EM' ELSE 'Bagé' END) as cidade,
+            COALESCE(v.cidade_carga, CASE WHEN a.placa IN ('IVB4468', 'IYJ6447', 'IUX9E18', 'IYS9069', 'IZG6F14', 'MJM4J78') THEN 'Bagé/EM' ELSE 'Bagé' END) as cidade_carga,
             CASE 
                 WHEN COALESCE(v.fracao, a.fracao, '') IN ('EM', '46º BPM - EM') THEN '46º BPM - EM'
                 ELSE COALESCE(v.fracao, a.fracao, '46º BPM')
@@ -1550,21 +1550,21 @@ def popular_viaturas_padrao_46bpm():
     cursor = conn.cursor()
     frota_oficial = [
         ('7879', 'JBM3576', 'AGRALE', 'MA 12.0 MAXIBUS MC', 'BAGÉ', '6035 7404 2195 1978', 'Diesel S10'),
-        ('9532', 'IVB4468', 'NISSAN', 'FRONTIER SVATK 4X4', 'EM', '6035 7404 2197 5738', 'Diesel S10'),
+        ('9532', 'IVB4468', 'NISSAN', 'FRONTIER SVATK 4X4', 'Bagé/EM', '6035 7404 2197 5738', 'Diesel S10'),
         ('9565', 'IVB4F30', 'NISSAN', 'FRONTIER SVATK 4X4', 'BAGÉ', '6035 7404 4017 7696', 'Diesel S10'),
         ('9583', 'IVA4820', 'MARCOPOLO', 'VOLARE W8 ON', 'BAGÉ', '6035 7404 2198 0068', 'Diesel S10'),
         ('9766', 'IVI1825', 'YAMAHA', 'LANDER XTZ 250', 'BAGÉ', '6035 7404 2198 7295', 'Gasolina Comum'),
         ('10817', 'PAR2840', 'CHEVROLET', 'S10 LT DD4', 'BAGÉ', '6035 7404 2197 5290', 'Diesel S10'),
         ('10898', 'IYJ1287', 'TOYOTA', 'HILUX CDSRVA4GF', 'BAGÉ', '6035 7404 2199 2345', 'Diesel S10'),
         ('11041', 'IYJ6493', 'TOYOTA', 'COROLLA XEI 2.0', 'DOM PEDRITO', '6035 7404 2197 2784', 'Gasolina Comum'),
-        ('11042', 'IYJ6447', 'TOYOTA', 'COROLLA XEI 2.0', 'EM', '6035 7404 2195 6258', 'Gasolina Comum'),
-        ('11375', 'IUX9E18', 'CHEVROLET', 'S10 LTZ FD2', 'EM', '6035 7404 2196 8436', 'Diesel S10'),
-        ('11489', 'IYS9069', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'EM', '6035 7404 2199 1024', 'Gasolina Comum'),
+        ('11042', 'IYJ6447', 'TOYOTA', 'COROLLA XEI 2.0', 'Bagé/EM', '6035 7404 2195 6258', 'Gasolina Comum'),
+        ('11375', 'IUX9E18', 'CHEVROLET', 'S10 LTZ FD2', 'Bagé/EM', '6035 7404 2196 8436', 'Diesel S10'),
+        ('11489', 'IYS9069', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'Bagé/EM', '6035 7404 2199 1024', 'Gasolina Comum'),
         ('11509', 'IYS9341', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'PINHEIRO MACHADO', '6035 7404 2195 4105', 'Gasolina Comum'),
         ('11560', 'IYT3841', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'BAGÉ', '6035 7404 4325 1514', 'Gasolina Comum'),
         ('11565', 'IYT3896', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'LAVRAS DO SUL', '6035 7404 2196 7222', 'Gasolina Comum'),
         ('11652', 'IYX4512', 'YAMAHA', 'LANDER XTZ 250', 'BAGÉ', '6035 7404 2199 9878', 'Gasolina Comum'),
-        ('11772', 'IZG6F14', 'TOYOTA', 'HILUX CDSRVA2GF', 'EM', '6035 7404 2199 5926', 'Diesel S10'),
+        ('11772', 'IZG6F14', 'TOYOTA', 'HILUX CDSRVA2GF', 'Bagé/EM', '6035 7404 2199 5926', 'Diesel S10'),
         ('11773', 'IZG6F20', 'TOYOTA', 'HILUX CDSRVA2GF', 'BAGÉ', '6035 7404 2198 8418', 'Diesel S10'),
         ('11774', 'IZG5E51', 'TOYOTA', 'HILUX CDSRVA2GF', 'BAGÉ', '6035 7404 2198 6156', 'Diesel S10'),
         ('11829', 'IZF4J45', 'FIAT', 'PÁLIO WEEK ADVENTURE', 'DOM PEDRITO', '6035 7404 2196 4567', 'Gasolina Comum'),
@@ -1591,7 +1591,7 @@ def popular_viaturas_padrao_46bpm():
         ('15025', 'TQW1H19', 'TOYOTA', 'HILUX', 'ACEGUÁ', '6035 7404 5177 3763', 'Diesel S10'),
         ('15413', 'TQX2C47', 'TOYOTA', 'COROLLA CROSS', 'BAGÉ', '6035 7407 5260 1112', 'Gasolina Comum'),
         ('15492', 'TQZ0B89', 'TOYOTA', 'COROLLA CROSS', 'PEDRAS ALTAS', '6035 7404 5272 6836', 'Gasolina Comum'),
-        ('15853', 'MJM4J78', 'VOLKSWAGEN', 'SAVEIRO', 'EM', '6035 7404 5595 8157', 'Gasolina Comum')
+        ('15853', 'MJM4J78', 'VOLKSWAGEN', 'SAVEIRO', 'Bagé/EM', '6035 7404 5595 8157', 'Gasolina Comum')
     ]
     for pref, placa, marca, mod, cidade, cartao, combustivel in frota_oficial:
         fracao_val = '46º BPM - EM' if cidade == 'EM' else f"46º BPM - {cidade}"

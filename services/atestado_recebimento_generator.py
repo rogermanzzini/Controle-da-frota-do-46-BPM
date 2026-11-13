@@ -67,7 +67,8 @@ def gerar_texto_padrao_recebimento(dados: Dict[str, Any]) -> str:
     modelo = str(dados.get('viatura_modelo') or 'Hilux').strip()
     placa = str(dados.get('viatura_placa') or '').strip().upper()
     cidade = str(dados.get('cidade_carga') or 'Bagé').strip()
-    if cidade.upper() in ('BAGÉ', 'BAGE'):
+    # Nas documentações oficiais geradas, onde for Bagé/EM ou variações, considere apenas Bagé
+    if cidade.upper() in ('BAGÉ', 'BAGE', 'BAGÉ/EM', 'BAGE/EM', 'EM', '46º BPM - EM', '46º BPM', ''):
         cidade = 'Bagé'
 
     # Dados da Empresa / Prestador

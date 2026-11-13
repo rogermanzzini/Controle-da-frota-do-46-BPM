@@ -893,7 +893,7 @@ def gerar_atestado_em_pdf_route():
                 a for a in abastecimentos
                 if str(a.get('placa', '')).strip().upper().replace('-', '').replace(' ', '') in placas_em_padrao
                 or 'EM' in str(a.get('fracao', '')).upper()
-                or str(a.get('cidade_carga', '')).strip().upper() == 'EM'
+                or str(a.get('cidade_carga', '')).strip().upper() in ('EM', 'BAGÉ/EM', 'BAGE/EM')
             ]
 
         if not abastecimentos_em:

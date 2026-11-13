@@ -216,12 +216,12 @@ def carregar_planilha_excel(caminho_ou_arquivo) -> pd.DataFrame:
 
 MAPA_OFICIAL_VIATURAS_46BPM: Dict[str, Dict[str, str]] = {
     # EM (Estado Maior - 6 viaturas)
-    'IVB4468': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '9532'},
-    'IYJ6447': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '11042'},
-    'IUX9E18': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '11375'},
-    'IYS9069': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '11489'},
-    'IZG6F14': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '11772'},
-    'MJM4J78': {'cidade': 'EM', 'fracao': '46º BPM - EM', 'prefixo': '15853'},
+    'IVB4468': {'cidade': 'Bagé/EM', 'fracao': '46º BPM - EM', 'prefixo': '9532'},
+    'IYJ6447': {'cidade': 'Bagé/EM', 'fracao': '46º BPM - EM', 'prefixo': '11042'},
+    'IUX9E18': {'cidade': 'Bagé/EM', 'fracao': '46º BPM - EM', 'prefixo': '11375'},
+    'IYS9069': {'cidade': 'Bagé/EM', 'fracao': '46º BPM - EM', 'prefixo': '11489'},
+    'IZG6F14': {'cidade': 'Bagé/EM', 'fracao': '46º BPM - EM', 'prefixo': '11772'},
+    'MJM4J78': {'cidade': 'Bagé/EM', 'fracao': '46º BPM - EM', 'prefixo': '15853'},
 
     # DOM PEDRITO (6 viaturas)
     'IYJ6493': {'cidade': 'Dom Pedrito', 'fracao': '46º BPM - DOM PEDRITO', 'prefixo': '11041'},
@@ -290,8 +290,8 @@ MAPA_PREFIXOS_46BPM: Dict[str, Dict[str, str]] = {
 def normalizar_cidade_resumo(cid: str) -> str:
     """Normaliza o nome da cidade para exibição padronizada na tabela lateral."""
     c = (cid or '').strip().upper()
-    if c in ['EM', 'ESTADO MAIOR', 'ESTADO-MAIOR', '46º BPM - EM']:
-        return 'EM'
+    if 'BAGÉ/EM' in c or 'BAGE/EM' in c or c in ['EM', 'ESTADO MAIOR', 'ESTADO-MAIOR', '46º BPM - EM']:
+        return 'Bagé/EM'
     if 'BAGE' in c or 'BAGÉ' in c:
         return 'Bagé'
     if 'ACEGUA' in c or 'ACEGUÁ' in c:
@@ -336,8 +336,8 @@ def obter_cidade_e_fracao_viatura(
 
     # Fallback inteligente para viaturas externas
     hint = f"{cidade_hint} {fracao_hint}".strip().upper()
-    if 'EM' in hint or 'ESTADO MAIOR' in hint or 'ESTADO-MAIOR' in hint:
-        return 'EM', 'EM'
+    if 'BAGÉ/EM' in hint or 'BAGE/EM' in hint or 'EM' in hint or 'ESTADO MAIOR' in hint or 'ESTADO-MAIOR' in hint:
+        return 'Bagé/EM', 'EM'
     for c_nome in ['Dom Pedrito', 'Lavras do Sul', 'Pinheiro Machado', 'Pedras Altas', 'Candiota', 'Aceguá', 'Hulha Negra', 'Bagé']:
         if c_nome.upper() in hint:
             return c_nome, c_nome.upper()
@@ -1231,7 +1231,7 @@ def gerar_planilha_consolidada_estado_e_plan2(
 
     # Tabela Lateral Consolidada (Colunas F e G)
     ordem_cidades = [
-        'EM', 'Bagé', 'Aceguá', 'Hulha Negra', 'Candiota',
+        'Bagé/EM', 'Bagé', 'Aceguá', 'Hulha Negra', 'Candiota',
         'Lavras do Sul', 'Pedras Altas', 'Pinheiro Machado', 'Dom Pedrito'
     ]
     for cid in cidades_totais:

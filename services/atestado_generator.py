@@ -595,7 +595,7 @@ def gerar_texto_padrao_atestado_em(
                 a for a in todos
                 if str(a.get('placa', '')).strip().upper() in placas_em
                 or 'EM' in str(a.get('fracao', '')).upper()
-                or str(a.get('cidade_carga', '')).strip().upper() == 'EM'
+                or str(a.get('cidade_carga', '')).strip().upper() in ('EM', 'BAGÉ/EM', 'BAGE/EM')
             ]
         except Exception:
             abastecimentos = []
