@@ -61,7 +61,7 @@
                         <th class="ps-3">Prefixo</th>
                         <th>Placa</th>
                         <th>Modelo / Descrição</th>
-                        <th>Fração</th>
+                        <th>Cidade</th>
                         <th>Combustível Padrão</th>
                         <th class="text-center">Status</th>
                         <th class="text-center pe-3">Ações</th>
@@ -73,7 +73,7 @@
                         <td class="ps-3 fw-bold text-info fs-6">{{ v.prefixo or '-' }}</td>
                         <td><span class="badge bg-secondary font-monospace fs-7">{{ v.placa }}</span></td>
                         <td>{{ v.modelo or 'Não informado' }}</td>
-                        <td><small class="text-secondary">{{ v.fracao or '46º BPM' }}</small></td>
+                        <td><small class="text-secondary">{{ v.cidade_carga or v.fracao or 'Bagé' }}</small></td>
                         <td><span class="badge bg-dark-subtle text-light border border-secondary">{{ v.tipo_combustivel }}</span></td>
                         <td class="text-center">
                             <span class="badge bg-success-subtle text-success">
@@ -120,8 +120,8 @@
                         <input type="text" name="modelo" class="form-control bg-dark text-light border-secondary" placeholder="Ex: Renault Duster 1.6 ou Toyota Hilux">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white">Fração / Unidade</label>
-                        <input type="text" name="fracao" class="form-control bg-dark text-light border-secondary" placeholder="Ex: 1ª Cia - Bagé, Força Tática, Patrulha Rural">
+                        <label class="form-label text-white">Cidade</label>
+                        <input type="text" name="cidade_carga" class="form-control bg-dark text-light border-secondary" placeholder="Ex: Bagé, Dom Pedrito, Lavras do Sul">
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white">Tipo de Combustível Principal</label>

@@ -105,7 +105,7 @@
                                 <th class="ps-3">Prefixo</th>
                                 <th>Placa</th>
                                 <th>Modelo</th>
-                                <th>Fração</th>
+                                <th>Cidade</th>
                                 <th class="text-center">Abastec.</th>
                                 <th class="text-end">Km Inicial</th>
                                 <th class="text-end">Km Final</th>
@@ -123,7 +123,7 @@
                                 <td class="ps-3 fw-bold text-info">{{ v.prefixo or '-' }}</td>
                                 <td><span class="badge bg-secondary font-monospace">{{ v.placa }}</span></td>
                                 <td>{{ v.modelo }}</td>
-                                <td><small class="text-secondary">{{ v.fracao }}</small></td>
+                                <td><small class="text-secondary">{{ v.cidade_carga or v.cidade or v.fracao or 'Bagé' }}</small></td>
                                 <td class="text-center">{{ v.qtd_abastecimentos }}</td>
                                 <td class="text-end text-muted">{{ "{:,.0f}".format(v.km_inicial).replace(',', '.') }}</td>
                                 <td class="text-end text-muted">{{ "{:,.0f}".format(v.km_final).replace(',', '.') }}</td>

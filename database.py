@@ -624,6 +624,8 @@ def obter_veiculos_com_abastecimento(importacao_id: Optional[int] = None) -> Lis
             a.placa,
             COALESCE(v.prefixo, a.prefixo, a.placa) as prefixo,
             COALESCE(v.modelo, a.modelo, 'Não informado') as modelo,
+            COALESCE(v.cidade_carga, 'Bagé') as cidade,
+            COALESCE(v.cidade_carga, 'Bagé') as cidade_carga,
             CASE 
                 WHEN COALESCE(v.fracao, a.fracao, '') IN ('EM', '46º BPM - EM') THEN '46º BPM - EM'
                 ELSE COALESCE(v.fracao, a.fracao, '46º BPM')
@@ -805,6 +807,8 @@ def obter_resumo_por_viatura(importacao_id: Optional[int] = None) -> List[Dict[s
             a.placa,
             COALESCE(v.prefixo, a.prefixo) as prefixo,
             COALESCE(v.modelo, a.modelo, 'Não informado') as modelo,
+            COALESCE(v.cidade_carga, 'Bagé') as cidade,
+            COALESCE(v.cidade_carga, 'Bagé') as cidade_carga,
             CASE 
                 WHEN COALESCE(v.fracao, a.fracao, '') IN ('EM', '46º BPM - EM') THEN '46º BPM - EM'
                 ELSE COALESCE(v.fracao, a.fracao, '46º BPM')
